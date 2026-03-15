@@ -7,6 +7,17 @@ API HTTP (Gin) para gerar documentos a partir de dados tabulares.
 - Body: JSON ou XML (`Content-Type: application/json` ou `application/xml`)
 - Resposta: download do arquivo (header `Content-Disposition: attachment; filename="..."`)
 
+## Licenciamento
+
+Este projeto usa **dupla licença**:
+
+- **Uso não-comercial (source-available)**: permitido para estudo/uso sem qualquer ligação a ganho financeiro.
+- **Uso comercial/empresa**: somente mediante **autorização explícita por e-mail** solicitada para `sherlott@live.com`.
+
+Qualquer cópia/uso/distribuição/derivação deve **referenciar o autor e dar créditos publicamente** (ver detalhes no arquivo de licença).
+
+Leia os termos completos em: [LICENSE](LICENSE)
+
 ## Executar localmente
 
 Pré-requisitos:

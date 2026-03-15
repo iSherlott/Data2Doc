@@ -1,0 +1,259 @@
+# Data2Doc — Dual License (Non-Commercial + Commercial by Authorization)
+
+Copyright (c) 2026 Sherlott (sherlott@live.com)
+All rights reserved.
+
+This repository is provided under a **dual-licensing** model (a “source-available” non-commercial license + commercial license by authorization). The structure is inspired by common dual-license patterns used by commercial-friendly projects (e.g., QuestPDF-style dual licensing), but **this text is specific to Data2Doc**.
+
+By copying, using, modifying, distributing, deploying, or otherwise interacting with this repository or any derivative work, you agree to the terms below.
+
+IMPORTANT
+- The **Non-Commercial** license below is **not** an OSI-approved “Open Source” license because it restricts commercial use.
+- If you need any commercial use, you must obtain the Commercial/Company authorization.
+
+NOT LEGAL ADVICE
+- This document is provided for licensing purposes only and is not legal advice.
+
+---
+
+## Purpose and philosophy (non-binding)
+
+This section explains the author’s intent. It is **non-binding** and does not replace the enforceable terms in the sections that follow.
+
+The Project was created to:
+- showcase the author’s software engineering skills;
+- serve as a real, production-grade foundation that the author can use in companies where the author works;
+- invite external feedback and contributions from people/teams who can help improve quality, reliability, and features.
+
+What the author wants to encourage:
+- learning, experimentation, and peer review;
+- constructive feedback, issue reports, and pull requests;
+- collaboration with teams that can provide real-world requirements and help improve the Project.
+
+What the author wants to avoid:
+- commercial exploitation without permission;
+- companies monetizing the Project (directly or indirectly) while removing, hiding, or skipping attribution;
+- scenarios where business value is extracted without fair value flowing back to the author (via compensation and/or meaningful contributions).
+
+The author is open to collaboration and learning from other perspectives. However, the author is concerned about scenarios where:
+- a company copies the Project;
+- uses it to create business value or revenue;
+- and fails to provide visible public credit and/or fair value back to the author.
+
+This dual-license is designed to:
+- keep non-commercial use accessible (study, experimentation, learning, community review);
+- require **explicit authorization** for any company/commercial context;
+- make **public attribution mandatory** for any copy, derivative, or deployment;
+- allow commercial usage through a direct relationship (email authorization), potentially including compensation (fee/royalties/sponsorship) or a negotiated value exchange (e.g., meaningful upstream contributions).
+
+Why attribution matters:
+- The Project is part of the author’s professional portfolio.
+- Visible credit protects the author against “invisible adoption” where the author receives none of the reputational value.
+
+Why commercial authorization exists:
+- Company usage often creates measurable value (revenue, cost reduction, time savings, competitive advantage).
+- Authorization ensures companies do not simply copy the Project and profit from it without a fair arrangement.
+
+If you want to use this Project in a company context, email `sherlott@live.com`—the author’s goal is to find a fair arrangement.
+
+---
+
+## 0) Definitions
+
+For the purposes of this license:
+
+- **Project** means the Data2Doc source code, documentation, build scripts, configuration files, and any other content in this repository.
+- **You** means the individual or entity exercising permissions under this license.
+- **Derivative Work** means any modification, fork, translation, adaptation, or work based on the Project.
+- **Non-Commercial Use** means use that is not directly or indirectly connected to financial gain or commercial advantage.
+- **Commercial Use** means any use connected to financial gain, revenue, paid activity, commercial advantage, or use by/for a company/organization in a business context.
+- **Public Deployment** means making the Project (or a Derivative Work) available to users outside your private device/environment (e.g., hosting, SaaS, public endpoints, client distribution).
+
+- **Compensation** means any monetary or non-monetary value exchange connected to the Project, including fees, revenue share/royalties, sponsorship, or equivalent value (e.g., paid support, services, or a negotiated contribution agreement).
+
+If there is any doubt whether a use is Commercial, you must treat it as Commercial and request authorization.
+
+For avoidance of doubt:
+- Company/organization **evaluation**, pilot programs, PoCs, or internal testing are considered **Commercial Use** (even if no money changes hands yet), because they are connected to business activity and potential commercial advantage.
+- Using the Project as part of work performed for an employer or a client is Commercial Use.
+
+---
+
+## 1) Non-Commercial Source-Available License (default)
+
+### 1.1 Grant
+Subject to the terms of this license, you are granted a non-exclusive, worldwide, **revocable** right to:
+- view and use the source code;
+- copy the Project;
+- modify the Project and create Derivative Works;
+- distribute the Project and Derivative Works.
+
+### 1.2 Non-Commercial restriction
+You may **not** use the Project (or Derivative Works) in any way that is directly or indirectly connected to **financial gain** or **commercial advantage**, including but not limited to:
+- selling the software;
+- offering paid services based on it (consulting, support, hosting, SaaS, etc.);
+- using it within or for the benefit of a business/organization where the use is connected to revenue generation, cost reduction, paid operations, or commercial advantage;
+- using it as part of a product, internal tool, or workflow in a company/organization when that use is connected to business activity.
+
+### 1.3 Attribution (mandatory) — “give public credit”
+Any copy, redistribution, Public Deployment, publication, or Derivative Work must provide **public, visible credit** to the original author.
+
+Required credit:
+- Name: **Sherlott**
+- Contact: **sherlott@live.com**
+- Project name: **Data2Doc**
+
+Minimum placement (choose at least one):
+- the README of the derivative repository;
+- the product documentation;
+- an “About”/credits section in the UI (if applicable).
+
+For **Public Deployments** (including internal dashboards used by multiple people, hosted APIs, SaaS, or tools used in an organization), attribution must be included in at least one of:
+- public documentation page;
+- API documentation (e.g., Swagger/README) visible to users;
+- “About”/credits page; or
+- repository/docs that are accessible to the deployment’s stakeholders.
+
+Attribution template (acceptable example):
+> “Powered by Data2Doc (c) 2026 Sherlott — sherlott@live.com”
+
+If the Project (or a Derivative Work) is used within a product or service that has public-facing materials (website, docs, sales deck, public API docs), you must ensure the attribution is present in at least one public-facing location. The intent is that users and stakeholders can reasonably discover the origin of the Project.
+
+You must not remove or obscure existing copyright notices.
+
+### 1.3.1 Attribution must be clear
+Attribution must be reasonably visible, not hidden behind multiple clicks, and not omitted from distributed artifacts. You may not claim authorship of the original Project.
+
+### 1.4 Distribution conditions
+If you distribute the Project or a Derivative Work, you must:
+- include this LICENSE file (or a link to it) with your distribution;
+- clearly state that your distribution is under the **Non-Commercial** license unless you provide proof of Commercial authorization;
+- keep all author attribution visible as required in §1.3;
+- not imply endorsement by the author.
+
+### 1.4.1 No removal of credit
+You may not remove, hide, or replace the required attribution in any distribution or Public Deployment.
+
+### 1.5 Anti-circumvention
+You may not structure your usage to avoid the Commercial Use restrictions (e.g., by routing usage through contractors, affiliates, or “free” tiers) if the overall intent or effect is Commercial.
+
+### 1.6 No trademark rights
+This license does not grant you any rights to use the author name, Project name, or trademarks for marketing/branding beyond the attribution required by §1.3.
+
+### 1.7 No warranty / limitation of liability
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE AUTHOR OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+## 2) Commercial/Company Use License (Authorization Required)
+
+Any Commercial Use requires **explicit written authorization** from the Licensor.
+
+To request authorization, email:
+- **sherlott@live.com**
+
+When requesting, include (recommended):
+- your name/company;
+- intended use (internal tool, SaaS, embedded product, consulting, etc.);
+- expected scale (users/tenants);
+- whether you need redistribution rights.
+
+Commercial terms (including fees, scope, redistribution rights, support, SLAs, and trademark/branding permissions) are defined only in the written authorization. Without that authorization, no commercial/company rights are granted.
+
+### 2.0 Attribution still applies
+Unless explicitly waived in writing by the Licensor, the Attribution requirements in §1.3 apply to Commercial Use as well. Commercial authorization does not grant permission to remove or hide credit.
+
+### 2.1 Compensation and value sharing
+Because the Project is intended to demonstrate the author’s expertise and may be used to create business value, Commercial authorization may require Compensation (e.g., a license fee, royalty/revenue share, sponsorship, or an agreed value exchange such as significant upstream contributions). The exact terms are negotiated by email and confirmed in writing.
+
+The intent of this section is to prevent situations where organizations extract value from the Project without giving visible credit and/or fair value back to the author.
+
+### 2.2 Partner-friendly intent (non-binding)
+The Licensor may, at their sole discretion, grant Commercial authorization under favorable terms to organizations that provide meaningful improvements, bug fixes, security fixes, documentation, or other contributions that help the Project evolve.
+
+---
+
+## 3) License changes, updates, and termination
+
+### 3.1 License changes
+The Licensor reserves the right to change, update, or replace these licensing terms at any time.
+
+New licensing terms may apply immediately to:
+- future downloads/releases;
+- future use of updated versions.
+
+If you continue to use, copy, modify, distribute, or deploy the Project after a license update is published in this repository, you agree to the updated terms.
+
+### 3.2 Termination
+This license and the rights granted under it automatically terminate if you breach its terms.
+
+The Licensor may also terminate this license grant for a specific user with immediate effect upon written notice.
+
+Upon termination, you must cease all use, distribution, and Public Deployment, and remove the Project from production systems where applicable.
+
+Sections that by their nature should survive termination (including Attribution, Warranty Disclaimer, and Limitation of Liability) survive.
+
+### 3.3 Compliance, verification, and inquiries
+If the Licensor reasonably believes you are engaged in unauthorized Commercial Use, the Licensor may contact you to request clarification. You agree to respond in good faith and provide sufficient information to confirm whether your use is Non-Commercial or Commercial.
+
+---
+
+## 4) Practical guidance (examples)
+
+The following examples are guidance only and do not expand the license grant:
+
+Likely **Non-Commercial** (allowed under §1):
+- personal study, experiments, and hobby projects not tied to revenue;
+- academic work with no paid product/service component;
+- internal use at home for personal automation not connected to any business.
+
+Also commonly **Non-Commercial**:
+- writing blog posts, tutorials, or public demos that credit the author and do not monetize the Project;
+- security research or code review performed privately and reported back;
+- running it locally for learning purposes with no business context.
+
+Likely **Commercial** (requires authorization under §2):
+- use inside a company (even if not sold) as part of business operations;
+- using it to provide consulting/services to clients;
+- hosting it as a SaaS/API for users (paid or ad-supported);
+- bundling it into a product or distributing it to customers.
+
+Also commonly **Commercial**:
+- company “evaluation”, pilot, PoC, internal demo, or benchmarking (even if free), because it is connected to business activity;
+- using it as part of work you are paid to do (employment or contract), even if the code itself is not sold;
+- using it to generate leads, reduce costs, or gain competitive advantage in an organization;
+- training courses, paid workshops, or paid content where the Project is a core deliverable.
+
+Attribution notes:
+- If you fork and publish the fork, credit must be visible in the fork’s README and/or documentation.
+- If you deploy an API/service using the Project, credit must be reasonably discoverable by stakeholders/users (e.g., docs, API docs, About page).
+
+If unsure, email `sherlott@live.com`.
+
+---
+
+## 5) Contributions and feedback
+
+### 5.1 Contributions
+If you submit a contribution (code, documentation, issues, suggestions, or other materials) to this repository, you grant the Licensor a perpetual, worldwide, royalty-free, irrevocable license to use, modify, sublicense, and distribute that contribution as part of the Project under any license terms the Licensor chooses.
+
+### 5.2 No obligation to compensate contributors
+Unless explicitly agreed in writing, the Licensor has no obligation to provide Compensation to contributors.
+
+### 5.3 Feedback
+You may provide feedback, ideas, or suggestions. You agree the Licensor may use them without restriction or obligation.
+
+---
+
+## 6) Third-party components
+
+The Project may include or depend on third-party libraries/tools, each of which may have its own license terms. Those third-party license terms remain applicable to their respective components and are not replaced by this LICENSE.
+
+---
+
+## 7) General
+
+- If any provision is held unenforceable, the remaining provisions remain in effect.
+- This license is the entire agreement for the non-commercial grant described here, unless replaced by a separate written commercial authorization.
