@@ -1,0 +1,76 @@
+basePath: /
+host: localhost:8080
+info:
+  contact: {}
+  description: Data binding to documents (excel/word/pdf).
+  title: Data2Doc API
+  version: "1.0"
+paths:
+  /generate/{type}:
+    post:
+      consumes:
+      - application/json
+      description: Generates a document in excel, word or pdf.
+      parameters:
+      - description: excel|word|pdf
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: template filename placed under templates/<type>/
+        in: query
+        name: template
+        type: string
+      - description: base filename (without extension)
+        in: query
+        name: id
+        type: string
+      - description: 'JSON payload (array of objects). No exemplo do Swagger ele pode
+          vir como [{}]; substitua por dados reais, ex: [{\'
+        in: body
+        name: payload
+        required: true
+        schema:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+      produces:
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      - application/pdf
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Generate a document
+      tags:
+      - documents
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer {token}"
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
