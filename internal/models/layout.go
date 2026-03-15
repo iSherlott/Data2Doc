@@ -256,8 +256,137 @@ type ColumnConfig struct {
 	// Excel-only advanced options
 	CellType ExcelCellTypeEnum `json:"cellType,omitempty" xml:"CellType,omitempty" example:"Select"`
 	Options  []string          `json:"options,omitempty" xml:"Options>Option,omitempty"`
-	Hidden   bool              `json:"hidden,omitempty" xml:"Hidden,omitempty"`
-	Locked   bool              `json:"locked,omitempty" xml:"Locked,omitempty"`
+	// validationRange sets a dropdown validation list by referencing a range (e.g. "Products!A2:A50").
+	// Only applies when cellType is Select. Mutually exclusive with options.
+	ValidationRange string `json:"validationRange,omitempty" xml:"ValidationRange,omitempty" example:"Products!A2:A50"`
+
+	// lookup configures a lookup formula when cellType is Lookup.
+	Lookup *ExcelLookupConfig `json:"lookup,omitempty" xml:"Lookup,omitempty"`
+
+	// conditionalFormatting applies conditional formatting rules to the whole column (data rows).
+	ConditionalFormatting []ExcelConditionalFormattingRule `json:"conditionalFormatting,omitempty" xml:"ConditionalFormatting>Rule,omitempty"`
+
+	// Simple per-column style overrides (Excel only)
+	BackgroundColor string `json:"backgroundColor,omitempty" xml:"BackgroundColor,omitempty" example:"#FFFFFF"`
+	TextColor       string `json:"textColor,omitempty" xml:"TextColor,omitempty" example:"#000000"`
+	HeaderColor     string `json:"headerColor,omitempty" xml:"HeaderColor,omitempty" example:"#FFFFFF"`
+	Hidden          bool   `json:"hidden,omitempty" xml:"Hidden,omitempty"`
+	Locked          bool   `json:"locked,omitempty" xml:"Locked,omitempty"`
+}
+
+type ExcelLookupEngineEnum string
+
+const (
+	ExcelLookupEngineVLookup ExcelLookupEngineEnum = "vlookup"
+	ExcelLookupEngineXLookup ExcelLookupEngineEnum = "xlookup"
+)
+
+func (e ExcelLookupEngineEnum) IsValid() bool {
+	switch e {
+	case ExcelLookupEngineVLookup, ExcelLookupEngineXLookup:
+		return true
+	default:
+		return false
+	}
+}
+
+type ExcelLookupMatchModeEnum string
+
+const (
+	ExcelLookupMatchExact   ExcelLookupMatchModeEnum = "exact"
+	ExcelLookupMatchApprox  ExcelLookupMatchModeEnum = "approx"
+	ExcelLookupMatchLessEq  ExcelLookupMatchModeEnum = "lessOrEqual"
+	ExcelLookupMatchGreater ExcelLookupMatchModeEnum = "greaterOrEqual"
+)
+
+func (m ExcelLookupMatchModeEnum) IsValid() bool {
+	switch m {
+	case ExcelLookupMatchExact, ExcelLookupMatchApprox, ExcelLookupMatchLessEq, ExcelLookupMatchGreater:
+		return true
+	default:
+		return false
+	}
+}
+
+type ExcelLookupConfig struct {
+	Sheet       string                   `json:"sheet" xml:"Sheet" example:"Products"`
+	KeyField    string                   `json:"keyField" xml:"KeyField" example:"productId"`
+	LookupField string                   `json:"lookupField" xml:"LookupField" example:"id"`
+	ReturnField string                   `json:"returnField" xml:"ReturnField" example:"name"`
+	MatchMode   ExcelLookupMatchModeEnum `json:"matchMode,omitempty" xml:"MatchMode,omitempty" example:"exact"`
+	Engine      ExcelLookupEngineEnum    `json:"engine,omitempty" xml:"Engine,omitempty" example:"vlookup"`
+}
+
+func (c ExcelLookupConfig) Validate() error {
+	if strings.TrimSpace(c.Sheet) == "" {
+		return fmt.Errorf("sheet is required")
+	}
+	if strings.TrimSpace(c.KeyField) == "" {
+		return fmt.Errorf("keyField is required")
+	}
+	if strings.TrimSpace(c.LookupField) == "" {
+		return fmt.Errorf("lookupField is required")
+	}
+	if strings.TrimSpace(c.ReturnField) == "" {
+		return fmt.Errorf("returnField is required")
+	}
+	if c.MatchMode != "" && !c.MatchMode.IsValid() {
+		return fmt.Errorf("matchMode is invalid")
+	}
+	if c.Engine != "" && !c.Engine.IsValid() {
+		return fmt.Errorf("engine is invalid")
+	}
+	return nil
+}
+
+type ExcelConditionalOperatorEnum string
+
+const (
+	ExcelCondGreaterThan  ExcelConditionalOperatorEnum = "greaterThan"
+	ExcelCondLessThan     ExcelConditionalOperatorEnum = "lessThan"
+	ExcelCondEqual        ExcelConditionalOperatorEnum = "equal"
+	ExcelCondContainsText ExcelConditionalOperatorEnum = "containsText"
+	ExcelCondFormula      ExcelConditionalOperatorEnum = "formula"
+)
+
+func (e ExcelConditionalOperatorEnum) IsValid() bool {
+	switch e {
+	case ExcelCondGreaterThan, ExcelCondLessThan, ExcelCondEqual, ExcelCondContainsText, ExcelCondFormula:
+		return true
+	default:
+		return false
+	}
+}
+
+type ExcelConditionalFormattingRule struct {
+	Operator        ExcelConditionalOperatorEnum `json:"operator" xml:"Operator" example:"greaterThan"`
+	Value           string                       `json:"value,omitempty" xml:"Value,omitempty" example:"100"`
+	Formula         string                       `json:"formula,omitempty" xml:"Formula,omitempty" example:"=$B2>100"`
+	BackgroundColor string                       `json:"backgroundColor,omitempty" xml:"BackgroundColor,omitempty" example:"#FEC7CE"`
+	TextColor       string                       `json:"textColor,omitempty" xml:"TextColor,omitempty" example:"#9A0511"`
+}
+
+func (r ExcelConditionalFormattingRule) Validate() error {
+	if r.Operator == "" || !r.Operator.IsValid() {
+		return fmt.Errorf("operator is invalid")
+	}
+	switch r.Operator {
+	case ExcelCondFormula:
+		if strings.TrimSpace(r.Formula) == "" {
+			return fmt.Errorf("formula is required when operator is formula")
+		}
+	default:
+		if strings.TrimSpace(r.Value) == "" {
+			return fmt.Errorf("value is required when operator is %s", r.Operator)
+		}
+	}
+	if _, err := normalizeHexColor(r.BackgroundColor); err != nil {
+		return fmt.Errorf("backgroundColor: %w", err)
+	}
+	if _, err := normalizeHexColor(r.TextColor); err != nil {
+		return fmt.Errorf("textColor: %w", err)
+	}
+	return nil
 }
 
 func (c ColumnConfig) Validate() error {
@@ -290,14 +419,41 @@ func (c ColumnConfig) Validate() error {
 	if c.CellType != "" && !c.CellType.IsValid() {
 		return fmt.Errorf("column.cellType is invalid")
 	}
+	if c.CellType == ExcelCellLookup {
+		if c.Lookup == nil {
+			return fmt.Errorf("column.lookup is required when cellType is Lookup")
+		}
+		if err := c.Lookup.Validate(); err != nil {
+			return fmt.Errorf("column.lookup: %w", err)
+		}
+	} else if c.Lookup != nil {
+		return fmt.Errorf("column.lookup is only allowed when cellType is Lookup")
+	}
 	if c.CellType == ExcelCellSelect {
-		if len(c.Options) == 0 {
-			return fmt.Errorf("column.options is required when cellType is Select")
+		if strings.TrimSpace(c.ValidationRange) != "" && len(c.Options) > 0 {
+			return fmt.Errorf("column.validationRange and column.options are mutually exclusive")
+		}
+		if strings.TrimSpace(c.ValidationRange) == "" && len(c.Options) == 0 {
+			return fmt.Errorf("column.options or column.validationRange is required when cellType is Select")
 		}
 		for i := range c.Options {
 			if strings.TrimSpace(c.Options[i]) == "" {
 				return fmt.Errorf("column.options[%d] must be non-empty", i)
 			}
+		}
+	}
+	if _, err := normalizeHexColor(c.BackgroundColor); err != nil {
+		return fmt.Errorf("column.backgroundColor: %w", err)
+	}
+	if _, err := normalizeHexColor(c.TextColor); err != nil {
+		return fmt.Errorf("column.textColor: %w", err)
+	}
+	if _, err := normalizeHexColor(c.HeaderColor); err != nil {
+		return fmt.Errorf("column.headerColor: %w", err)
+	}
+	for i := range c.ConditionalFormatting {
+		if err := c.ConditionalFormatting[i].Validate(); err != nil {
+			return fmt.Errorf("column.conditionalFormatting[%d]: %w", i, err)
 		}
 	}
 	return nil
@@ -311,6 +467,35 @@ type SheetConfig struct {
 func (s SheetConfig) Validate() error {
 	if strings.TrimSpace(s.Name) == "" {
 		return fmt.Errorf("sheet.name is required")
+	}
+	return nil
+}
+
+type ExcelChartConfig struct {
+	Type          ChartTypeEnum `json:"type" xml:"Type" example:"Column"`
+	Title         string        `json:"title,omitempty" xml:"Title,omitempty" example:"Sales by Department"`
+	Sheet         string        `json:"sheet,omitempty" xml:"Sheet,omitempty" example:"Sales"`
+	Position      string        `json:"position,omitempty" xml:"Position,omitempty" example:"E2"`
+	CategoryField string        `json:"categoryField" xml:"CategoryField" example:"department"`
+	ValueField    string        `json:"valueField" xml:"ValueField" example:"total"`
+}
+
+var excelCellRefRe = regexp.MustCompile(`^[A-Za-z]{1,3}[1-9][0-9]*$`)
+
+func (c ExcelChartConfig) Validate() error {
+	if c.Type == "" || !c.Type.IsValid() {
+		return fmt.Errorf("chart.type is invalid")
+	}
+	if strings.TrimSpace(c.CategoryField) == "" {
+		return fmt.Errorf("chart.categoryField is required")
+	}
+	if strings.TrimSpace(c.ValueField) == "" {
+		return fmt.Errorf("chart.valueField is required")
+	}
+	if p := strings.TrimSpace(c.Position); p != "" {
+		if !excelCellRefRe.MatchString(p) {
+			return fmt.Errorf("chart.position '%s' is invalid (expected A1)", c.Position)
+		}
 	}
 	return nil
 }
@@ -330,6 +515,7 @@ type LayoutConfig struct {
 	GroupBy              string              `json:"groupBy,omitempty" xml:"GroupBy,omitempty" example:"department"`
 	ShowTotalRow         bool                `json:"showTotalRow,omitempty" xml:"ShowTotalRow,omitempty"`
 	Sheets               []SheetConfig       `json:"sheets,omitempty" xml:"Sheets>Sheet,omitempty"`
+	Charts               []ExcelChartConfig  `json:"charts,omitempty" xml:"Charts>Chart,omitempty"`
 
 	Header      *StyleConfig       `json:"header,omitempty" xml:"Header,omitempty"`
 	Body        *StyleConfig       `json:"body,omitempty" xml:"Body,omitempty"`
@@ -393,6 +579,11 @@ func (l *LayoutConfig) Validate() error {
 	for i := range l.Sheets {
 		if err := l.Sheets[i].Validate(); err != nil {
 			return fmt.Errorf("sheets[%d]: %w", i, err)
+		}
+	}
+	for i := range l.Charts {
+		if err := l.Charts[i].Validate(); err != nil {
+			return fmt.Errorf("charts[%d]: %w", i, err)
 		}
 	}
 	for i := range l.Columns {

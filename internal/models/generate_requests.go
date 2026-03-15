@@ -300,10 +300,16 @@ type ExcelColumnConfig struct {
 	Aggregate    string `json:"aggregate,omitempty" xml:"Aggregate,omitempty" example:"sum"`
 	PercentageOf string `json:"percentageOf,omitempty" xml:"PercentageOf,omitempty" example:"salary"`
 
-	CellType ExcelCellTypeEnum `json:"cellType,omitempty" xml:"CellType,omitempty" example:"Select"`
-	Options  []string          `json:"options,omitempty" xml:"Options>Option,omitempty"`
-	Hidden   bool              `json:"hidden,omitempty" xml:"Hidden,omitempty"`
-	Locked   bool              `json:"locked,omitempty" xml:"Locked,omitempty"`
+	CellType              ExcelCellTypeEnum                `json:"cellType,omitempty" xml:"CellType,omitempty" example:"Select"`
+	Options               []string                         `json:"options,omitempty" xml:"Options>Option,omitempty"`
+	ValidationRange       string                           `json:"validationRange,omitempty" xml:"ValidationRange,omitempty" example:"Products!A2:A50"`
+	Lookup                *ExcelLookupConfig               `json:"lookup,omitempty" xml:"Lookup,omitempty"`
+	ConditionalFormatting []ExcelConditionalFormattingRule `json:"conditionalFormatting,omitempty" xml:"ConditionalFormatting>Rule,omitempty"`
+	BackgroundColor       string                           `json:"backgroundColor,omitempty" xml:"BackgroundColor,omitempty" example:"#FFFFFF"`
+	TextColor             string                           `json:"textColor,omitempty" xml:"TextColor,omitempty" example:"#000000"`
+	HeaderColor           string                           `json:"headerColor,omitempty" xml:"HeaderColor,omitempty" example:"#FFFFFF"`
+	Hidden                bool                             `json:"hidden,omitempty" xml:"Hidden,omitempty"`
+	Locked                bool                             `json:"locked,omitempty" xml:"Locked,omitempty"`
 }
 
 func (c ExcelColumnConfig) Validate() error {
@@ -336,14 +342,41 @@ func (c ExcelColumnConfig) Validate() error {
 	if c.CellType != "" && !c.CellType.IsValid() {
 		return fmt.Errorf("column.cellType is invalid")
 	}
+	if c.CellType == ExcelCellLookup {
+		if c.Lookup == nil {
+			return fmt.Errorf("column.lookup is required when cellType is Lookup")
+		}
+		if err := c.Lookup.Validate(); err != nil {
+			return fmt.Errorf("column.lookup: %w", err)
+		}
+	} else if c.Lookup != nil {
+		return fmt.Errorf("column.lookup is only allowed when cellType is Lookup")
+	}
 	if c.CellType == ExcelCellSelect {
-		if len(c.Options) == 0 {
-			return fmt.Errorf("column.options is required when cellType is Select")
+		if strings.TrimSpace(c.ValidationRange) != "" && len(c.Options) > 0 {
+			return fmt.Errorf("column.validationRange and column.options are mutually exclusive")
+		}
+		if strings.TrimSpace(c.ValidationRange) == "" && len(c.Options) == 0 {
+			return fmt.Errorf("column.options or column.validationRange is required when cellType is Select")
 		}
 		for i := range c.Options {
 			if strings.TrimSpace(c.Options[i]) == "" {
 				return fmt.Errorf("column.options[%d] must be non-empty", i)
 			}
+		}
+	}
+	if _, err := normalizeHexColor(c.BackgroundColor); err != nil {
+		return fmt.Errorf("column.backgroundColor: %w", err)
+	}
+	if _, err := normalizeHexColor(c.TextColor); err != nil {
+		return fmt.Errorf("column.textColor: %w", err)
+	}
+	if _, err := normalizeHexColor(c.HeaderColor); err != nil {
+		return fmt.Errorf("column.headerColor: %w", err)
+	}
+	for i := range c.ConditionalFormatting {
+		if err := c.ConditionalFormatting[i].Validate(); err != nil {
+			return fmt.Errorf("column.conditionalFormatting[%d]: %w", i, err)
 		}
 	}
 	return nil
@@ -383,6 +416,7 @@ type ExcelLayoutConfig struct {
 	GroupBy         string              `json:"groupBy,omitempty" xml:"GroupBy,omitempty" example:"department"`
 	ShowTotalRow    bool                `json:"showTotalRow,omitempty" xml:"ShowTotalRow,omitempty"`
 	Sheets          []SheetConfig       `json:"sheets,omitempty" xml:"Sheets>Sheet,omitempty"`
+	Charts          []ExcelChartConfig  `json:"charts,omitempty" xml:"Charts>Chart,omitempty"`
 	Header          *StyleConfig        `json:"header,omitempty" xml:"Header,omitempty"`
 	Body            *StyleConfig        `json:"body,omitempty" xml:"Body,omitempty"`
 	Columns         []ExcelColumnConfig `json:"columns,omitempty" xml:"Columns>Column,omitempty"`
@@ -418,6 +452,11 @@ func (l *ExcelLayoutConfig) Validate() error {
 			return fmt.Errorf("sheets[%d]: %w", i, err)
 		}
 	}
+	for i := range l.Charts {
+		if err := l.Charts[i].Validate(); err != nil {
+			return fmt.Errorf("charts[%d]: %w", i, err)
+		}
+	}
 	seenFields := map[string]bool{}
 	for i := range l.Columns {
 		if err := l.Columns[i].Validate(); err != nil {
@@ -448,6 +487,7 @@ func (l *ExcelLayoutConfig) ToLayoutConfig() *LayoutConfig {
 		GroupBy:         l.GroupBy,
 		ShowTotalRow:    l.ShowTotalRow,
 		Sheets:          l.Sheets,
+		Charts:          l.Charts,
 		Header:          l.Header,
 		Body:            l.Body,
 	}
@@ -455,20 +495,26 @@ func (l *ExcelLayoutConfig) ToLayoutConfig() *LayoutConfig {
 		out.Columns = make([]ColumnConfig, 0, len(l.Columns))
 		for _, c := range l.Columns {
 			out.Columns = append(out.Columns, ColumnConfig{
-				Field:             c.Field,
-				Title:             c.Title,
-				Width:             c.Width,
-				Alignment:         c.Alignment,
-				VerticalAlignment: c.VerticalAlignment,
-				Format:            c.Format,
-				Formula:           c.Formula,
-				SheetFormula:      c.SheetFormula,
-				Aggregate:         c.Aggregate,
-				PercentageOf:      c.PercentageOf,
-				CellType:          c.CellType,
-				Options:           c.Options,
-				Hidden:            c.Hidden,
-				Locked:            c.Locked,
+				Field:                 c.Field,
+				Title:                 c.Title,
+				Width:                 c.Width,
+				Alignment:             c.Alignment,
+				VerticalAlignment:     c.VerticalAlignment,
+				Format:                c.Format,
+				Formula:               c.Formula,
+				SheetFormula:          c.SheetFormula,
+				Aggregate:             c.Aggregate,
+				PercentageOf:          c.PercentageOf,
+				CellType:              c.CellType,
+				Options:               c.Options,
+				ValidationRange:       c.ValidationRange,
+				Lookup:                c.Lookup,
+				ConditionalFormatting: c.ConditionalFormatting,
+				BackgroundColor:       c.BackgroundColor,
+				TextColor:             c.TextColor,
+				HeaderColor:           c.HeaderColor,
+				Hidden:                c.Hidden,
+				Locked:                c.Locked,
 			})
 		}
 	}

@@ -187,6 +187,312 @@ func TestGenerateV2_Excel_Advanced_Features_WritesExpectedXML(t *testing.T) {
 	}
 }
 
+func TestGenerateV2_Excel_Charts_WritesChartParts(t *testing.T) {
+	svc := &service.DocumentService{}
+
+	req := models.DocumentRequest{
+		Format: models.DocumentFormatExcel,
+		Layout: &models.LayoutConfig{
+			Sheets: []models.SheetConfig{{Name: "Sales", DataSource: "sales"}},
+			Columns: []models.ColumnConfig{
+				{Field: "dept", Title: "Department"},
+				{Field: "total", Title: "Total", Aggregate: "sum"},
+			},
+			Charts: []models.ExcelChartConfig{
+				{
+					Type:          models.ChartColumn,
+					Title:         "Sales by Department",
+					Sheet:         "Sales",
+					Position:      "E2",
+					CategoryField: "dept",
+					ValueField:    "total",
+				},
+			},
+		},
+		Data: models.DataPayload{Sources: map[string]models.DynamicData{
+			"sales": {
+				Items: []map[string]any{{"dept": "A", "total": 10}, {"dept": "B", "total": 20}},
+				Order: []string{"dept", "total"},
+			},
+		}},
+	}
+
+	gen, err := svc.Generate(req)
+	if err != nil {
+		t.Fatalf("GenerateV2: %v", err)
+	}
+	if len(gen.Bytes) == 0 {
+		t.Fatalf("expected non-empty xlsx bytes")
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(gen.Bytes), int64(len(gen.Bytes)))
+	if err != nil {
+		t.Fatalf("zip.NewReader: %v", err)
+	}
+
+	chartParts := 0
+	var chartXML string
+	for _, f := range zr.File {
+		if strings.HasPrefix(f.Name, "xl/charts/") && strings.HasSuffix(f.Name, ".xml") {
+			chartParts++
+			if chartXML == "" {
+				r, err := f.Open()
+				if err != nil {
+					t.Fatalf("open %s: %v", f.Name, err)
+				}
+				b, _ := io.ReadAll(r)
+				_ = r.Close()
+				chartXML = string(b)
+			}
+		}
+	}
+	if chartParts == 0 {
+		t.Fatalf("expected at least one chart part under xl/charts/")
+	}
+	if chartXML == "" {
+		t.Fatalf("expected readable chart xml")
+	}
+	if !strings.Contains(chartXML, "Sales") {
+		t.Fatalf("expected chart xml to reference sheet 'Sales'")
+	}
+}
+
+func TestGenerateV2_Excel_ConditionalFormatting_WritesWorksheetXML(t *testing.T) {
+	svc := &service.DocumentService{}
+
+	req := models.DocumentRequest{
+		Format: models.DocumentFormatExcel,
+		Layout: &models.LayoutConfig{
+			Columns: []models.ColumnConfig{
+				{Field: "name", Title: "Name"},
+				{Field: "amount", Title: "Amount", ConditionalFormatting: []models.ExcelConditionalFormattingRule{
+					{Operator: models.ExcelCondGreaterThan, Value: "10", BackgroundColor: "#FEC7CE", TextColor: "#9A0511"},
+				}},
+			},
+		},
+		Data: models.DataPayload{Default: models.DynamicData{Items: []map[string]any{{"name": "A", "amount": 5}, {"name": "B", "amount": 20}}, Order: []string{"name", "amount"}}},
+	}
+
+	gen, err := svc.Generate(req)
+	if err != nil {
+		t.Fatalf("GenerateV2: %v", err)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(gen.Bytes), int64(len(gen.Bytes)))
+	if err != nil {
+		t.Fatalf("zip.NewReader: %v", err)
+	}
+
+	var sheetXML string
+	for _, f := range zr.File {
+		if strings.HasPrefix(f.Name, "xl/worksheets/") && strings.HasSuffix(f.Name, ".xml") {
+			r, err := f.Open()
+			if err != nil {
+				t.Fatalf("open %s: %v", f.Name, err)
+			}
+			b, _ := io.ReadAll(r)
+			_ = r.Close()
+			sheetXML = string(b)
+			break
+		}
+	}
+	if sheetXML == "" {
+		t.Fatalf("expected worksheet xml")
+	}
+	if !strings.Contains(sheetXML, "conditionalFormatting") {
+		t.Fatalf("expected conditionalFormatting in worksheet xml")
+	}
+}
+
+func TestGenerateV2_Excel_ValidationRange_WritesWorksheetXML(t *testing.T) {
+	svc := &service.DocumentService{}
+
+	req := models.DocumentRequest{
+		Format: models.DocumentFormatExcel,
+		Layout: &models.LayoutConfig{
+			Sheets: []models.SheetConfig{{Name: "Products", DataSource: "products"}, {Name: "Orders", DataSource: "orders"}},
+			Columns: []models.ColumnConfig{
+				{Field: "product", Title: "Product", CellType: models.ExcelCellSelect, ValidationRange: "Products!A2:A3"},
+				{Field: "qty", Title: "Qty", CellType: models.ExcelCellNumber},
+			},
+		},
+		Data: models.DataPayload{Sources: map[string]models.DynamicData{
+			"products": {Items: []map[string]any{{"name": "P1"}, {"name": "P2"}}, Order: []string{"name"}},
+			"orders":   {Items: []map[string]any{{"product": "P1", "qty": 1}}, Order: []string{"product", "qty"}},
+		}},
+	}
+
+	gen, err := svc.Generate(req)
+	if err != nil {
+		t.Fatalf("GenerateV2: %v", err)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(gen.Bytes), int64(len(gen.Bytes)))
+	if err != nil {
+		t.Fatalf("zip.NewReader: %v", err)
+	}
+
+	ordersSheetXML := ""
+	for _, f := range zr.File {
+		if strings.HasPrefix(f.Name, "xl/worksheets/") && strings.HasSuffix(f.Name, ".xml") {
+			r, err := f.Open()
+			if err != nil {
+				t.Fatalf("open %s: %v", f.Name, err)
+			}
+			b, _ := io.ReadAll(r)
+			_ = r.Close()
+			xml := string(b)
+			// The sheet order isn't stable across versions; just grab the one that contains the validation formula.
+			if strings.Contains(xml, "dataValidations") && strings.Contains(xml, "Products") {
+				ordersSheetXML = xml
+				break
+			}
+		}
+	}
+	if ordersSheetXML == "" {
+		t.Fatalf("expected worksheet xml with data validation referencing Products")
+	}
+}
+
+func TestGenerateV2_Excel_CellTypeFormula_WritesFormula(t *testing.T) {
+	svc := &service.DocumentService{}
+
+	req := models.DocumentRequest{
+		Format: models.DocumentFormatExcel,
+		Layout: &models.LayoutConfig{
+			Columns: []models.ColumnConfig{
+				{Field: "a", Title: "A", CellType: models.ExcelCellNumber},
+				{Field: "b", Title: "B", CellType: models.ExcelCellFormula},
+			},
+		},
+		Data: models.DataPayload{Default: models.DynamicData{Items: []map[string]any{{"a": 5, "b": "=A2*2"}}, Order: []string{"a", "b"}}},
+	}
+
+	gen, err := svc.Generate(req)
+	if err != nil {
+		t.Fatalf("GenerateV2: %v", err)
+	}
+
+	f, err := excelize.OpenReader(bytes.NewReader(gen.Bytes))
+	if err != nil {
+		t.Fatalf("excelize.OpenReader: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	fx, err := f.GetCellFormula("Sheet1", "B2")
+	if err != nil {
+		t.Fatalf("GetCellFormula: %v", err)
+	}
+	if !strings.Contains(fx, "A2*2") {
+		t.Fatalf("expected formula to contain A2*2, got %q", fx)
+	}
+}
+
+func TestGenerateV2_Excel_InferredColumns_LeadingEquals_WritesFormulaAndResolvesSheetTokens(t *testing.T) {
+	svc := &service.DocumentService{}
+
+	req := models.DocumentRequest{
+		Format: models.DocumentFormatExcel,
+		Layout: &models.LayoutConfig{
+			Sheets: []models.SheetConfig{{Name: "Employees", DataSource: "employees"}, {Name: "FinanceSummary", DataSource: "summary"}},
+			// Global columns apply to Employees, but not to FinanceSummary (it will infer label/value).
+			Columns: []models.ColumnConfig{
+				{Field: "employee", Title: "Employee"},
+				{Field: "totalCompensation", Title: "Total", Format: models.ColFormatCurrency, Aggregate: "sum"},
+			},
+		},
+		Data: models.DataPayload{Sources: map[string]models.DynamicData{
+			"employees": {Items: []map[string]any{{"employee": "Ana", "totalCompensation": 1000}, {"employee": "Bruno", "totalCompensation": 2000}}, Order: []string{"employee", "totalCompensation"}},
+			"summary":   {Items: []map[string]any{{"label": "Total Payroll", "value": "=SUM(sheet:Employees.totalCompensation)"}}, Order: []string{"label", "value"}},
+		}},
+	}
+
+	gen, err := svc.Generate(req)
+	if err != nil {
+		t.Fatalf("GenerateV2: %v", err)
+	}
+
+	f, err := excelize.OpenReader(bytes.NewReader(gen.Bytes))
+	if err != nil {
+		t.Fatalf("excelize.OpenReader: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	fx, err := f.GetCellFormula("FinanceSummary", "B2")
+	if err != nil {
+		t.Fatalf("GetCellFormula: %v", err)
+	}
+	if fx == "" {
+		t.Fatalf("expected FinanceSummary!B2 to have a formula")
+	}
+	if strings.Contains(fx, "sheet:") {
+		t.Fatalf("expected sheet tokens to be resolved, got %q", fx)
+	}
+	if !strings.Contains(fx, "Employees") {
+		t.Fatalf("expected formula to reference Employees sheet, got %q", fx)
+	}
+	if !strings.Contains(strings.ToUpper(fx), "SUM(") {
+		t.Fatalf("expected formula to contain SUM, got %q", fx)
+	}
+}
+
+func TestGenerateV2_Excel_CellTypeLookup_WritesVlookupFormula(t *testing.T) {
+	svc := &service.DocumentService{}
+
+	req := models.DocumentRequest{
+		Format: models.DocumentFormatExcel,
+		Layout: &models.LayoutConfig{
+			// Put Orders before Products to ensure lookups are resolved after all sheets are registered.
+			Sheets: []models.SheetConfig{{Name: "Orders", DataSource: "orders"}, {Name: "Products", DataSource: "products"}},
+			Columns: []models.ColumnConfig{
+				{Field: "productId", Title: "Product ID", CellType: models.ExcelCellNumber},
+				{Field: "productName", Title: "Product", CellType: models.ExcelCellLookup, Lookup: &models.ExcelLookupConfig{
+					Sheet:       "Products",
+					KeyField:    "productId",
+					LookupField: "id",
+					ReturnField: "name",
+					MatchMode:   models.ExcelLookupMatchExact,
+					Engine:      models.ExcelLookupEngineVLookup,
+				}},
+			},
+		},
+		Data: models.DataPayload{Sources: map[string]models.DynamicData{
+			"products": {Items: []map[string]any{{"id": 1, "name": "P1"}, {"id": 2, "name": "P2"}}, Order: []string{"id", "name"}},
+			"orders":   {Items: []map[string]any{{"productId": 2}}, Order: []string{"productId"}},
+		}},
+	}
+
+	gen, err := svc.Generate(req)
+	if err != nil {
+		t.Fatalf("GenerateV2: %v", err)
+	}
+
+	f, err := excelize.OpenReader(bytes.NewReader(gen.Bytes))
+	if err != nil {
+		t.Fatalf("excelize.OpenReader: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	fx, err := f.GetCellFormula("Orders", "B2")
+	if err != nil {
+		t.Fatalf("GetCellFormula: %v", err)
+	}
+	strip := func(s string) string { return strings.ReplaceAll(strings.ReplaceAll(s, " ", ""), "\t", "") }
+	got := strip(fx)
+	if !strings.Contains(got, "VLOOKUP(") {
+		t.Fatalf("expected VLOOKUP formula, got %q", fx)
+	}
+	if !strings.Contains(got, "VLOOKUP(A2") {
+		t.Fatalf("expected VLOOKUP to reference key cell A2, got %q", fx)
+	}
+	if !strings.Contains(got, "'Products'!$A$2:$B$3") {
+		t.Fatalf("expected VLOOKUP to reference Products range $A$2:$B$3, got %q", fx)
+	}
+	if !strings.Contains(got, ",2,FALSE)") {
+		t.Fatalf("expected VLOOKUP colIndex=2 and exact match FALSE, got %q", fx)
+	}
+}
+
 func TestGenerateV2_Excel_SheetsConfig_RemovesDefaultSheet1(t *testing.T) {
 	svc := &service.DocumentService{}
 

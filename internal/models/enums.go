@@ -145,11 +145,13 @@ const (
 	ExcelCellCurrency ExcelCellTypeEnum = "Currency"
 	ExcelCellDate     ExcelCellTypeEnum = "Date"
 	ExcelCellSelect   ExcelCellTypeEnum = "Select"
+	ExcelCellFormula  ExcelCellTypeEnum = "Formula"
+	ExcelCellLookup   ExcelCellTypeEnum = "Lookup"
 )
 
 func (e ExcelCellTypeEnum) IsValid() bool {
 	switch e {
-	case ExcelCellText, ExcelCellNumber, ExcelCellCurrency, ExcelCellDate, ExcelCellSelect:
+	case ExcelCellText, ExcelCellNumber, ExcelCellCurrency, ExcelCellDate, ExcelCellSelect, ExcelCellFormula, ExcelCellLookup:
 		return true
 	default:
 		return false
@@ -185,8 +187,12 @@ func (e *ExcelCellTypeEnum) fromString(s string) error {
 		*e = ExcelCellDate
 	case "select":
 		*e = ExcelCellSelect
+	case "formula":
+		*e = ExcelCellFormula
+	case "lookup":
+		*e = ExcelCellLookup
 	default:
-		return fmt.Errorf("invalid columns.cellType '%s' (expected: Text|Number|Currency|Date|Select)", s)
+		return fmt.Errorf("invalid columns.cellType '%s' (expected: Text|Number|Currency|Date|Select|Formula|Lookup)", s)
 	}
 	return nil
 }

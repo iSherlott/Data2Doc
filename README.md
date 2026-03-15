@@ -137,9 +137,15 @@ Aceita (`ExcelGenerateRequest`):
 		- `aggregate` (string): agregação automática (hoje: `sum`) — cria linha(s) de subtotal/total com `SUM(...)`
 		- `percentageOf` (string): calcula percentual da coluna referenciada sobre o total (ex.: `salary / totalSalary`)
 		- `format`: `currency|number|percentage|date|dateTime`
-		- `cellType`: `Text|Number|Currency|Date|Select`
+			- `cellType`: `Text|Number|Currency|Date|Select|Formula|Lookup`
 			- Se `Select`, `options[]` é obrigatório
+				- Se `Formula`, o valor do campo na linha deve ser uma fórmula Excel (ex.: `"=SUM(A2:A10)"`)
+				- Se `Lookup`, `lookup` é obrigatório (ver “Passo a passo” abaixo)
+			- `validationRange` (string): validação por lista usando um range (ex.: `"Products!$A$2:$A$50"`)
+			- `conditionalFormatting[]` (opcional): regras de formatação condicional por coluna
+			- `backgroundColor`, `textColor`, `headerColor` (opcional): cores por coluna (hex como `#RRGGBB`)
 		- `hidden` (bool), `locked` (bool)
+		- `charts[]` (opcional): adiciona charts no Excel
 - `data` (obrigatório)
 	- Dataset único (default) quando `layout.sheets` não é usado
 	- Multi-dataset quando `layout.sheets` referencia `dataSource`
@@ -149,11 +155,144 @@ Significado do payload:
 - Sem `layout.sheets`: o Excel usa o dataset default como “tabela principal”.
 - Com `layout.sheets`: cada aba lê seu dataset por `dataSource`.
 - `layout.columns` é global: se as colunas configuradas não existirem no dataset de uma aba, as colunas dessa aba são inferidas automaticamente a partir das chaves do dataset.
+	- `layout.columns` é global, mas o renderer aplica uma heurística de “colunas aplicáveis por aba”:
+		- Se uma aba tiver poucas/nenhuma coluna aplicável (ex.: aba auxiliar como `Products`, `Fleet`, `Logistics`, `Summary`), as colunas são inferidas automaticamente a partir das chaves do dataset daquela aba.
+		- Se uma aba tiver colunas suficientes aplicáveis (incluindo colunas calculadas como `formula`, `percentageOf`, `sheetFormula` e `cellType: Lookup`), a aba usa as colunas configuradas.
+		- Isso evita abas cheias de colunas vazias quando você usa um `layout.columns` focado em uma aba “principal” (ex.: `Purchases`).
 
 Cross-sheet formulas:
 
 - Dentro de `formula`/`sheetFormula`, você pode usar o token `sheet:<NomeDaAba>.<field>`.
 	- Ex.: `SUM(sheet:Employees.salary)` → `SUM(Employees!B2:B10)` (o range é resolvido automaticamente com base nas linhas geradas).
+
+#### Passo a passo (Excel multi-abas + Lookup + charts)
+
+1) Defina `layout.sheets[]` e coloque cada dataset em `data` com a chave igual ao `dataSource`.
+
+2) Se você quiser uma aba “principal” (ex.: `Purchases`) com colunas calculadas, use `layout.columns` global.
+	- As abas auxiliares (`Products`, `Fleet`, `Logistics`, `FinanceSummary`) podem ficar sem `layout.columns` específico — o serviço vai inferir as colunas nelas automaticamente quando o layout global não for aplicável.
+
+3) Para preencher um campo via busca em outra aba, use `cellType: "Lookup"` + `lookup`:
+	- `sheet`: nome da aba onde está a “tabela de referência”
+	- `keyField`: campo do dataset atual que contém a chave (ex.: `productId`)
+	- `lookupField`: campo da aba de referência que contém a chave (ex.: `id`)
+	- `returnField`: campo da aba de referência que será retornado (ex.: `name`)
+	- `engine`: `vlookup` (compatível) ou `xlookup` (mais flexível)
+	- `matchMode`: `exact` (padrão) ou variantes
+
+Importante:
+	- Você NÃO precisa expor `keyField` como uma coluna visível para o Lookup funcionar.
+		- Se `keyField` não existir nas colunas renderizadas da aba, o serviço usa o valor da linha como literal na fórmula (`VLOOKUP(2,...)`).
+		- Se `keyField` existir como coluna, o serviço referencia a célula (`VLOOKUP(A2,...)`) — bom para cenários em que o usuário edita a planilha.
+	- `engine: "vlookup"` exige que `returnField` esteja à direita de `lookupField` na aba de referência; caso contrário, use `engine: "xlookup"`.
+
+4) Para charts, use `layout.charts[]` e aponte `categoryField`/`valueField` para campos existentes na aba.
+
+Exemplo completo (baseado no seu caso):
+
+```json
+{
+	"layout": {
+		"freezeHeader": true,
+		"autoSizeColumns": true,
+		"groupBy": "supplier",
+		"sheets": [
+			{ "name": "Products", "dataSource": "products" },
+			{ "name": "Purchases", "dataSource": "purchases" },
+			{ "name": "Fleet", "dataSource": "fleet" },
+			{ "name": "Logistics", "dataSource": "logistics" },
+			{ "name": "FinanceSummary", "dataSource": "summary" }
+		],
+		"columns": [
+			{ "field": "id", "title": "ID", "backgroundColor": "#F2F2F2" },
+			{
+				"field": "product",
+				"title": "Product",
+				"cellType": "Lookup",
+				"lookup": {
+					"sheet": "Products",
+					"keyField": "productId",
+					"lookupField": "id",
+					"returnField": "name",
+					"matchMode": "exact",
+					"engine": "vlookup"
+				}
+			},
+			{ "field": "supplier", "title": "Supplier", "backgroundColor": "#E8F4FF" },
+			{ "field": "qty", "title": "Quantity", "format": "number" },
+			{ "field": "price", "title": "Unit Price", "format": "currency", "textColor": "#003366" },
+			{
+				"field": "total",
+				"title": "Total Cost",
+				"formula": "qty * price",
+				"aggregate": "sum",
+				"format": "currency",
+				"backgroundColor": "#FFF4E5",
+				"conditionalFormatting": [
+					{
+						"operator": "greaterThan",
+						"value": "10000",
+						"backgroundColor": "#FFD6D6",
+						"textColor": "#9A0511"
+					}
+				]
+			},
+			{ "field": "percent", "title": "% Supplier", "percentageOf": "total", "format": "percentage" }
+		],
+		"charts": [
+			{
+				"type": "column",
+				"title": "Cost by Supplier",
+				"sheet": "Purchases",
+				"position": "H2",
+				"categoryField": "supplier",
+				"valueField": "total"
+			},
+			{
+				"type": "pie",
+				"title": "Fleet Cost Distribution",
+				"sheet": "Fleet",
+				"position": "H20",
+				"categoryField": "vehicle",
+				"valueField": "cost"
+			}
+		]
+	},
+	"data": {
+		"products": [
+			{ "id": 1, "name": "Server Dell R740" },
+			{ "id": 2, "name": "Laptop Lenovo T14" },
+			{ "id": 3, "name": "Cisco Switch 24p" }
+		],
+		"purchases": [
+			{ "productId": 1, "supplier": "Dell", "qty": 2, "price": 15000 },
+			{ "productId": 2, "supplier": "Lenovo", "qty": 5, "price": 7000 },
+			{ "productId": 3, "supplier": "Cisco", "qty": 3, "price": 12000 },
+			{ "productId": 2, "supplier": "Lenovo", "qty": 10, "price": 6800 }
+		],
+		"fleet": [
+			{ "vehicle": "Truck Volvo FH", "cost": 120000 },
+			{ "vehicle": "Van Mercedes Sprinter", "cost": 90000 },
+			{ "vehicle": "Pickup Hilux", "cost": 75000 }
+		],
+		"logistics": [
+			{ "route": "SP → RJ", "distance": 430, "cost": 3200 },
+			{ "route": "SP → MG", "distance": 590, "cost": 4200 },
+			{ "route": "SP → PR", "distance": 410, "cost": 3000 }
+		],
+		"summary": [
+			{ "label": "Total Purchases", "value": "", "formula": "SUM(sheet:Purchases.total)" },
+			{ "label": "Fleet Investment", "value": "", "formula": "SUM(sheet:Fleet.cost)" },
+			{ "label": "Logistics Cost", "value": "", "formula": "SUM(sheet:Logistics.cost)" }
+		]
+	}
+}
+```
+
+Nota sobre `summary`:
+	- Se você quiser que a coluna `value` realmente calcule a fórmula, a forma recomendada é:
+		- definir uma coluna `value` com `cellType: "Formula"` e colocar a expressão Excel dentro do próprio campo `value` (ex.: `"value": "=SUM(sheet:Purchases.total)"`), ou
+		- usar `sheetFormula` na coluna (quando o layout for específico para essa aba).
 
 ### 2) POST /generate/pdf
 

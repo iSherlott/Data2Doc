@@ -53,10 +53,114 @@ type v2Column struct {
 	PercentageOf string
 
 	// Excel-only features
-	CellType models.ExcelCellTypeEnum
-	Options  []string
-	Hidden   bool
-	Locked   bool
+	CellType              models.ExcelCellTypeEnum
+	Options               []string
+	ValidationRange       string
+	Lookup                *models.ExcelLookupConfig
+	ConditionalFormatting []models.ExcelConditionalFormattingRule
+	BackgroundColor       string
+	TextColor             string
+	HeaderColor           string
+	Hidden                bool
+	Locked                bool
+}
+
+type pendingExcelLookup struct {
+	Sheet   string
+	Cell    string
+	KeyCell string
+	Config  models.ExcelLookupConfig
+}
+
+func v2ApplyPendingLookups(f *excelize.File, pending []pendingExcelLookup, reg *excelSheetRegistry) error {
+	if f == nil || len(pending) == 0 {
+		return nil
+	}
+	for i := range pending {
+		p := pending[i]
+		fx, err := v2BuildLookupFormula(p, reg)
+		if err != nil {
+			return err
+		}
+		if err := f.SetCellFormula(p.Sheet, p.Cell, fx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func v2BuildLookupFormula(p pendingExcelLookup, reg *excelSheetRegistry) (string, error) {
+	engine := p.Config.Engine
+	if strings.TrimSpace(string(engine)) == "" {
+		engine = models.ExcelLookupEngineVLookup
+	}
+	matchMode := p.Config.MatchMode
+	if strings.TrimSpace(string(matchMode)) == "" {
+		matchMode = models.ExcelLookupMatchExact
+	}
+	lookupSheet := strings.TrimSpace(p.Config.Sheet)
+	if lookupSheet == "" {
+		return "", fmt.Errorf("lookup.sheet is required")
+	}
+	meta, ok := reg.Get(lookupSheet)
+	if !ok {
+		return "", fmt.Errorf("unknown lookup sheet '%s'", lookupSheet)
+	}
+	lookupField := strings.ToLower(strings.TrimSpace(p.Config.LookupField))
+	returnField := strings.ToLower(strings.TrimSpace(p.Config.ReturnField))
+	lookupCol, ok := meta.FieldToCol[lookupField]
+	if !ok {
+		return "", fmt.Errorf("lookupField '%s' not found in sheet '%s'", p.Config.LookupField, meta.Name)
+	}
+	returnCol, ok := meta.FieldToCol[returnField]
+	if !ok {
+		return "", fmt.Errorf("returnField '%s' not found in sheet '%s'", p.Config.ReturnField, meta.Name)
+	}
+	lookupColNum, err := excelize.ColumnNameToNumber(lookupCol)
+	if err != nil {
+		return "", err
+	}
+	returnColNum, err := excelize.ColumnNameToNumber(returnCol)
+	if err != nil {
+		return "", err
+	}
+
+	start := maxInt(2, meta.DataStartRow)
+	end := maxInt(start, meta.DataEndRow)
+	qSheet := excelQuoteSheetName(meta.Name)
+
+	switch engine {
+	case models.ExcelLookupEngineXLookup:
+		lookupArr := fmt.Sprintf("%s!$%s$%d:$%s$%d", qSheet, lookupCol, start, lookupCol, end)
+		returnArr := fmt.Sprintf("%s!$%s$%d:$%s$%d", qSheet, returnCol, start, returnCol, end)
+		mm := "0"
+		switch matchMode {
+		case models.ExcelLookupMatchExact:
+			mm = "0"
+		case models.ExcelLookupMatchLessEq, models.ExcelLookupMatchApprox:
+			mm = "-1"
+		case models.ExcelLookupMatchGreater:
+			mm = "1"
+		default:
+			mm = "0"
+		}
+		return fmt.Sprintf("XLOOKUP(%s,%s,%s,\"\",%s)", p.KeyCell, lookupArr, returnArr, mm), nil
+	case models.ExcelLookupEngineVLookup:
+		if returnColNum < lookupColNum {
+			return "", fmt.Errorf("lookup: returnField '%s' is left of lookupField '%s' on sheet '%s'; use engine 'xlookup' or reorder the lookup sheet columns", p.Config.ReturnField, p.Config.LookupField, meta.Name)
+		}
+		rangeEndColNum := maxInt(lookupColNum, returnColNum)
+		rangeEndCol, _ := excelize.ColumnNumberToName(rangeEndColNum)
+		rangeRef := fmt.Sprintf("%s!$%s$%d:$%s$%d", qSheet, lookupCol, start, rangeEndCol, end)
+		colIndex := returnColNum - lookupColNum + 1
+		approx := "FALSE"
+		if matchMode != models.ExcelLookupMatchExact {
+			approx = "TRUE"
+		}
+		return fmt.Sprintf("VLOOKUP(%s,%s,%d,%s)", p.KeyCell, rangeRef, colIndex, approx), nil
+	default:
+		return "", fmt.Errorf("lookup.engine is invalid")
+	}
 }
 
 func (s *DocumentService) Generate(req models.DocumentRequest) (*GeneratedDocument, error) {
@@ -109,20 +213,26 @@ func v2BuildColumns(req models.DocumentRequest, data models.DynamicData) []v2Col
 				title = c.Field
 			}
 			out = append(out, v2Column{
-				Field:        c.Field,
-				Title:        title,
-				Width:        c.Width,
-				Align:        c.Alignment,
-				VAlign:       c.VerticalAlignment,
-				Format:       c.Format,
-				Formula:      c.Formula,
-				SheetFormula: c.SheetFormula,
-				Aggregate:    c.Aggregate,
-				PercentageOf: c.PercentageOf,
-				CellType:     c.CellType,
-				Options:      c.Options,
-				Hidden:       c.Hidden,
-				Locked:       c.Locked,
+				Field:                 c.Field,
+				Title:                 title,
+				Width:                 c.Width,
+				Align:                 c.Alignment,
+				VAlign:                c.VerticalAlignment,
+				Format:                c.Format,
+				Formula:               c.Formula,
+				SheetFormula:          c.SheetFormula,
+				Aggregate:             c.Aggregate,
+				PercentageOf:          c.PercentageOf,
+				CellType:              c.CellType,
+				Options:               c.Options,
+				ValidationRange:       c.ValidationRange,
+				Lookup:                c.Lookup,
+				ConditionalFormatting: c.ConditionalFormatting,
+				BackgroundColor:       c.BackgroundColor,
+				TextColor:             c.TextColor,
+				HeaderColor:           c.HeaderColor,
+				Hidden:                c.Hidden,
+				Locked:                c.Locked,
 			})
 		}
 		return out
@@ -139,44 +249,204 @@ func v2BuildExcelColumns(req models.DocumentRequest, data models.DynamicData) []
 		return v2BuildColumns(req, data)
 	}
 	// For multi-sheet Excel, it is common that each sheet points to a different dataset.
-	// If the global layout.columns doesn't match the dataset schema for this sheet,
+	// If the global layout.columns isn't applicable to the dataset schema for this sheet,
 	// infer columns from the dataset to avoid empty sheets with unrelated headers.
-	if !v2AnyColumnMatchesData(req.Layout.Columns, data) {
-		out := make([]v2Column, 0, len(data.Order))
-		for _, k := range data.Order {
-			out = append(out, v2Column{Field: k, Title: k})
-		}
-		return out
+	if !v2ShouldUseConfiguredColumns(req.Layout.Columns, data) {
+		return v2InferExcelColumns(data)
 	}
 	return v2BuildColumns(req, data)
 }
 
-func v2AnyColumnMatchesData(cols []models.ColumnConfig, data models.DynamicData) bool {
+func v2InferExcelColumns(data models.DynamicData) []v2Column {
+	out := make([]v2Column, 0, len(data.Order))
+	for _, k := range data.Order {
+		col := v2Column{Field: k, Title: k}
+		// Heuristic: if any row contains a string that looks like an Excel formula (starts with '='),
+		// infer the column as Formula so it is written using SetCellFormula rather than as raw text.
+		for i := range data.Items {
+			row := data.Items[i]
+			if row == nil {
+				continue
+			}
+			val, ok := row[k]
+			if !ok {
+				// Best-effort: support case-insensitive key lookups when Order uses a different casing.
+				for kk, vv := range row {
+					if strings.EqualFold(kk, k) {
+						val = vv
+						ok = true
+						break
+					}
+				}
+			}
+			if !ok {
+				continue
+			}
+			s, isStr := val.(string)
+			if !isStr {
+				continue
+			}
+			st := strings.TrimSpace(s)
+			if strings.HasPrefix(st, "=") && len(st) > 1 {
+				col.CellType = models.ExcelCellFormula
+				break
+			}
+		}
+		out = append(out, col)
+	}
+	return out
+}
+
+func v2ShouldUseConfiguredColumns(cols []models.ColumnConfig, data models.DynamicData) bool {
 	if len(cols) == 0 {
 		return false
 	}
+	keys := v2DataKeySet(data)
 	// If the dataset has no keys (shouldn't happen due to validation), keep configured columns.
-	if len(data.Order) == 0 {
-		if len(data.Items) == 0 {
-			return true
+	if len(keys) == 0 {
+		return true
+	}
+	configuredFields := make(map[string]struct{}, len(cols))
+	for i := range cols {
+		f := strings.ToLower(strings.TrimSpace(cols[i].Field))
+		if f != "" {
+			configuredFields[f] = struct{}{}
 		}
-		for _, c := range cols {
-			if _, ok := data.Items[0][c.Field]; ok {
-				return true
+	}
+
+	applicable := make(map[string]bool, len(cols))
+	// Seed applicability based on direct data fields and non-row-dependent computed columns.
+	for i := range cols {
+		c := cols[i]
+		field := strings.ToLower(strings.TrimSpace(c.Field))
+		if field == "" {
+			continue
+		}
+		if _, ok := keys[field]; ok {
+			applicable[field] = true
+			continue
+		}
+		if strings.TrimSpace(c.SheetFormula) != "" {
+			applicable[field] = true
+			continue
+		}
+		if c.CellType == models.ExcelCellLookup && c.Lookup != nil {
+			k := strings.ToLower(strings.TrimSpace(c.Lookup.KeyField))
+			if k != "" {
+				if _, ok := keys[k]; ok {
+					applicable[field] = true
+					continue
+				}
 			}
 		}
-		return false
 	}
-	keys := make(map[string]struct{}, len(data.Order))
-	for _, k := range data.Order {
-		keys[k] = struct{}{}
-	}
-	for _, c := range cols {
-		if _, ok := keys[c.Field]; ok {
-			return true
+
+	// Iteratively mark computed columns as applicable when their dependencies are available.
+	changed := true
+	for changed {
+		changed = false
+		for i := range cols {
+			c := cols[i]
+			field := strings.ToLower(strings.TrimSpace(c.Field))
+			if field == "" || applicable[field] {
+				continue
+			}
+
+			if strings.TrimSpace(c.Formula) != "" {
+				ok := true
+				for _, tok := range v2ExtractIdentTokens(c.Formula) {
+					tl := strings.ToLower(tok)
+					if tl == "" {
+						continue
+					}
+					if _, inData := keys[tl]; inData {
+						continue
+					}
+					// Only treat tokens that match known column fields as dependencies.
+					if _, isField := configuredFields[tl]; isField {
+						if applicable[tl] {
+							continue
+						}
+						ok = false
+						break
+					}
+					// Unknown tokens are treated as functions/constants (e.g., ROUND, IF).
+				}
+				if ok {
+					applicable[field] = true
+					changed = true
+					continue
+				}
+			}
+
+			if strings.TrimSpace(c.PercentageOf) != "" {
+				ref := strings.ToLower(strings.TrimSpace(c.PercentageOf))
+				if ref != "" {
+					if _, inData := keys[ref]; inData || applicable[ref] {
+						applicable[field] = true
+						changed = true
+						continue
+					}
+				}
+			}
 		}
 	}
-	return false
+
+	applicableCount := 0
+	for _, v := range applicable {
+		if v {
+			applicableCount++
+		}
+	}
+	// Heuristic: require at least 2 applicable columns for multi-field datasets.
+	// This keeps configured columns on sheets like Purchases, while allowing helper sheets
+	// (Products/Fleet/Logistics/Summary) to infer columns naturally.
+	if len(keys) == 1 {
+		return applicableCount >= 1
+	}
+	return applicableCount >= 2
+}
+
+func v2DataKeySet(data models.DynamicData) map[string]struct{} {
+	keys := map[string]struct{}{}
+	for _, k := range data.Order {
+		v := strings.ToLower(strings.TrimSpace(k))
+		if v != "" {
+			keys[v] = struct{}{}
+		}
+	}
+	if len(keys) == 0 && len(data.Items) > 0 {
+		for k := range data.Items[0] {
+			v := strings.ToLower(strings.TrimSpace(k))
+			if v != "" {
+				keys[v] = struct{}{}
+			}
+		}
+	}
+	return keys
+}
+
+func v2ExtractIdentTokens(expr string) []string {
+	out := make([]string, 0, 8)
+	in := strings.TrimSpace(expr)
+	for i := 0; i < len(in); {
+		r := rune(in[i])
+		if isIdentStart(r) {
+			j := i + 1
+			for j < len(in) {
+				r2 := rune(in[j])
+				if !isIdentContinue(r2) {
+					break
+				}
+				j++
+			}
+			out = append(out, in[i:j])
+			i = j
+			continue
+		}
+		i++
+	}
+	return out
 }
 
 func v2ApplyDefaultFont(def models.StyleConfig, req models.DocumentRequest) models.StyleConfig {
@@ -289,6 +559,46 @@ func v2AnyToString(v any) string {
 	}
 }
 
+func v2ExcelFormulaLiteral(v any) (string, bool) {
+	if v == nil {
+		return "", false
+	}
+	switch vv := v.(type) {
+	case string:
+		s := strings.TrimSpace(vv)
+		if s == "" {
+			return "", false
+		}
+		// Escape double quotes in Excel string literals by doubling.
+		es := strings.ReplaceAll(s, "\"", "\"\"")
+		return "\"" + es + "\"", true
+	case bool:
+		if vv {
+			return "TRUE", true
+		}
+		return "FALSE", true
+	case int:
+		return strconv.Itoa(vv), true
+	case int64:
+		return fmt.Sprintf("%d", vv), true
+	case float64:
+		if vv == math.Trunc(vv) {
+			return fmt.Sprintf("%.0f", vv), true
+		}
+		return fmt.Sprintf("%v", vv), true
+	case json.Number:
+		return vv.String(), true
+	default:
+		// Fallback: treat as string.
+		s := strings.TrimSpace(v2AnyToString(vv))
+		if s == "" {
+			return "", false
+		}
+		es := strings.ReplaceAll(s, "\"", "\"\"")
+		return "\"" + es + "\"", true
+	}
+}
+
 func v2NormalizeHexColor(s string) string {
 	v := strings.TrimSpace(s)
 	if v == "" {
@@ -313,6 +623,7 @@ func (s *DocumentService) v2RenderExcel(req models.DocumentRequest) ([]byte, err
 
 	reg := newExcelSheetRegistry()
 	pending := make([]pendingExcelFormula, 0)
+	pendingLookups := make([]pendingExcelLookup, 0)
 
 	// Determine sheets.
 	targetSheets := []models.SheetConfig{}
@@ -381,12 +692,18 @@ func (s *DocumentService) v2RenderExcel(req models.DocumentRequest) ([]byte, err
 			}
 		}
 
-		meta, pend, err := v2RenderExcelSheet(f, sheetName, req, cols, data)
+		meta, pend, pendLookups, err := v2RenderExcelSheet(f, sheetName, req, cols, data)
 		if err != nil {
 			return nil, err
 		}
 		reg.Register(meta)
 		pending = append(pending, pend...)
+		pendingLookups = append(pendingLookups, pendLookups...)
+	}
+
+	// Apply pending lookups after all sheets are rendered/registered.
+	if err := v2ApplyPendingLookups(f, pendingLookups, reg); err != nil {
+		return nil, err
 	}
 
 	// Resolve any pending cross-sheet formulas after all sheets are rendered.
@@ -401,11 +718,100 @@ func (s *DocumentService) v2RenderExcel(req models.DocumentRequest) ([]byte, err
 		}
 	}
 
+	if err := v2ApplyExcelCharts(f, req, reg); err != nil {
+		return nil, err
+	}
+
 	buf, err := f.WriteToBuffer()
 	if err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func v2ApplyExcelCharts(f *excelize.File, req models.DocumentRequest, reg *excelSheetRegistry) error {
+	if f == nil || req.Layout == nil || len(req.Layout.Charts) == 0 {
+		return nil
+	}
+	defaultSheet := ""
+	if len(req.Layout.Sheets) > 0 {
+		defaultSheet = strings.TrimSpace(req.Layout.Sheets[0].Name)
+	}
+	if defaultSheet == "" {
+		defaultSheet = f.GetSheetName(0)
+		if strings.TrimSpace(defaultSheet) == "" {
+			defaultSheet = "Sheet1"
+		}
+	}
+
+	toExcelizeType := func(t models.ChartTypeEnum) excelize.ChartType {
+		switch t {
+		case models.ChartBar:
+			return excelize.Bar
+		case models.ChartLine:
+			return excelize.Line
+		case models.ChartPie:
+			return excelize.Pie
+		case models.ChartArea:
+			return excelize.Area
+		case models.ChartColumn:
+			return excelize.Col
+		default:
+			return excelize.Col
+		}
+	}
+
+	for i := range req.Layout.Charts {
+		ch := req.Layout.Charts[i]
+		sheet := strings.TrimSpace(ch.Sheet)
+		if sheet == "" {
+			sheet = defaultSheet
+		}
+		pos := strings.TrimSpace(ch.Position)
+		if pos == "" {
+			pos = "E2"
+		}
+		meta, ok := reg.Get(sheet)
+		if !ok {
+			return fmt.Errorf("charts[%d]: unknown sheet '%s'", i, sheet)
+		}
+
+		catCol, ok := meta.FieldToCol[strings.ToLower(strings.TrimSpace(ch.CategoryField))]
+		if !ok {
+			return fmt.Errorf("charts[%d]: categoryField '%s' not found in sheet '%s'", i, ch.CategoryField, meta.Name)
+		}
+		valCol, ok := meta.FieldToCol[strings.ToLower(strings.TrimSpace(ch.ValueField))]
+		if !ok {
+			return fmt.Errorf("charts[%d]: valueField '%s' not found in sheet '%s'", i, ch.ValueField, meta.Name)
+		}
+		start := maxInt(2, meta.DataStartRow)
+		end := meta.DataEndRow
+		if end < start {
+			return fmt.Errorf("charts[%d]: sheet '%s' has no data rows for chart", i, meta.Name)
+		}
+
+		qSheet := excelQuoteSheetName(meta.Name)
+		categories := fmt.Sprintf("%s!$%s$%d:$%s$%d", qSheet, catCol, start, catCol, end)
+		values := fmt.Sprintf("%s!$%s$%d:$%s$%d", qSheet, valCol, start, valCol, end)
+		name := fmt.Sprintf("%s!$%s$1", qSheet, valCol)
+
+		excelChart := &excelize.Chart{
+			Type: toExcelizeType(ch.Type),
+			Series: []excelize.ChartSeries{{
+				Name:       name,
+				Categories: categories,
+				Values:     values,
+			}},
+		}
+		if strings.TrimSpace(ch.Title) != "" {
+			excelChart.Title = []excelize.RichTextRun{{Text: strings.TrimSpace(ch.Title)}}
+		}
+
+		if err := f.AddChart(meta.Name, pos, excelChart); err != nil {
+			return fmt.Errorf("charts[%d]: %w", i, err)
+		}
+	}
+	return nil
 }
 
 func v2ApplyExcelPageSetup(f *excelize.File, sheet string, req models.DocumentRequest) error {
@@ -436,26 +842,27 @@ func v2ApplyExcelPageSetup(f *excelize.File, sheet string, req models.DocumentRe
 	return nil
 }
 
-func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentRequest, cols []v2Column, data models.DynamicData) (excelSheetMeta, []pendingExcelFormula, error) {
+func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentRequest, cols []v2Column, data models.DynamicData) (excelSheetMeta, []pendingExcelFormula, []pendingExcelLookup, error) {
 	hStyle := v2StyleHeader(req)
 	bStyle := v2StyleBody(req)
 
 	meta := excelSheetMeta{Name: sheet, FieldToCol: map[string]string{}, DataStartRow: 2}
 	pending := make([]pendingExcelFormula, 0)
+	pendingLookups := make([]pendingExcelLookup, 0)
 
 	if req.Layout != nil {
 		if req.Layout.FreezeColumns > 0 && req.Layout.FreezeColumns > len(cols) {
-			return excelSheetMeta{}, nil, fmt.Errorf("freezeColumns must be <= number of columns")
+			return excelSheetMeta{}, nil, nil, fmt.Errorf("freezeColumns must be <= number of columns")
 		}
 		if req.Layout.MaxVisibleRows > 0 && len(data.Items) > req.Layout.MaxVisibleRows {
-			return excelSheetMeta{}, nil, fmt.Errorf("maxVisibleRows must be >= number of records")
+			return excelSheetMeta{}, nil, nil, fmt.Errorf("maxVisibleRows must be >= number of records")
 		}
 	}
 
 	// Cache style IDs by key.
 	styleCache := map[string]int{}
-	getStyle := func(isHeader bool, fillHex string, hAlign string, vAlign string, numFmt *string, locked bool) (int, error) {
-		key := fmt.Sprintf("h=%v|fill=%s|ha=%s|va=%s|nf=%v|locked=%v", isHeader, fillHex, hAlign, vAlign, numFmt, locked)
+	getStyle := func(isHeader bool, fillHex string, fontHex string, hAlign string, vAlign string, numFmt *string, locked bool) (int, error) {
+		key := fmt.Sprintf("h=%v|fill=%s|font=%s|ha=%s|va=%s|nf=%v|locked=%v", isHeader, fillHex, fontHex, hAlign, vAlign, numFmt, locked)
 		if id, ok := styleCache[key]; ok {
 			return id, nil
 		}
@@ -463,7 +870,11 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 		if isHeader {
 			base = hStyle
 		}
-		fontColor := v2NormalizeHexColor(base.FontColor)
+		fHex := strings.TrimSpace(fontHex)
+		if fHex == "" {
+			fHex = base.FontColor
+		}
+		fontColor := v2NormalizeHexColor(fHex)
 		bg := v2NormalizeHexColor(fillHex)
 		st := &excelize.Style{
 			Font: &excelize.Font{Bold: base.Bold, Italic: base.Italic, Underline: func() string {
@@ -516,9 +927,13 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 
 	for i, c := range cols {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
-		hID, err := getStyle(true, hStyle.Background, excelHAlign(hStyle.Alignment), excelVAlign(hStyle.VerticalAlign), nil, true)
+		headerFill := hStyle.Background
+		if strings.TrimSpace(c.HeaderColor) != "" {
+			headerFill = c.HeaderColor
+		}
+		hID, err := getStyle(true, headerFill, "", excelHAlign(hStyle.Alignment), excelVAlign(hStyle.VerticalAlign), nil, true)
 		if err != nil {
-			return excelSheetMeta{}, nil, err
+			return excelSheetMeta{}, nil, nil, err
 		}
 		_ = f.SetCellValue(sheet, cell, c.Title)
 		_ = f.SetCellStyle(sheet, cell, cell, hID)
@@ -656,6 +1071,7 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 					setVal = ""
 				} else {
 					// Set raw value for better formatting when possible.
+					didSetFormula := false
 					switch c.CellType {
 					case models.ExcelCellText:
 						setVal = v2AnyToString(val)
@@ -678,6 +1094,56 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 						}
 					case models.ExcelCellSelect:
 						setVal = v2AnyToString(val)
+					case models.ExcelCellFormula:
+						fx := strings.TrimSpace(v2AnyToString(val))
+						if strings.HasPrefix(fx, "=") {
+							fx = strings.TrimSpace(fx[1:])
+						}
+						if fx != "" {
+							if strings.Contains(fx, "sheet:") {
+								pending = append(pending, pendingExcelFormula{Sheet: sheet, Cell: cell, Formula: fx})
+							} else {
+								_ = f.SetCellFormula(sheet, cell, fx)
+							}
+							didSetFormula = true
+						}
+						setVal = ""
+					case models.ExcelCellLookup:
+						if c.Lookup == nil {
+							return fmt.Errorf("column '%s': lookup config is required when cellType is Lookup", c.Field)
+						}
+						keyField := strings.ToLower(strings.TrimSpace(c.Lookup.KeyField))
+						keyExpr := ""
+						if keyCol, ok := meta.FieldToCol[keyField]; ok {
+							keyExpr = fmt.Sprintf("%s%d", keyCol, excelRow)
+						} else {
+							// If the keyField isn't a rendered column, use the row value as a literal.
+							// This supports hidden keys (e.g., productId exists in data but not in columns).
+							keyVal := any(nil)
+							if item != nil {
+								keyVal = item[c.Lookup.KeyField]
+								if keyVal == nil {
+									// best-effort case-insensitive lookup
+									for k, v := range item {
+										if strings.EqualFold(k, c.Lookup.KeyField) {
+											keyVal = v
+											break
+										}
+									}
+								}
+							}
+							if lit, ok := v2ExcelFormulaLiteral(keyVal); ok {
+								keyExpr = lit
+							}
+						}
+						if strings.TrimSpace(keyExpr) == "" {
+							// No key available for this row; don't error.
+							setVal = v2AnyToString(val)
+							break
+						}
+						pendingLookups = append(pendingLookups, pendingExcelLookup{Sheet: sheet, Cell: cell, KeyCell: keyExpr, Config: *c.Lookup})
+						didSetFormula = true
+						setVal = ""
 					default:
 						if c.Format != "" {
 							if parsed, ok := v2CoerceForExcel(c.Format, val); ok {
@@ -685,7 +1151,9 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 							}
 						}
 					}
-					_ = f.SetCellValue(sheet, cell, setVal)
+					if !didSetFormula {
+						_ = f.SetCellValue(sheet, cell, setVal)
+					}
 				}
 
 				// Estimate row height based on the longest wrapped cell.
@@ -713,6 +1181,13 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 					fill = oddBg
 				}
 			}
+			if !isSubtotalOrTotal && strings.TrimSpace(c.BackgroundColor) != "" {
+				fill = c.BackgroundColor
+			}
+			fontOverride := ""
+			if !isSubtotalOrTotal && strings.TrimSpace(c.TextColor) != "" {
+				fontOverride = c.TextColor
+			}
 			ha := excelHAlign(bStyle.Alignment)
 			if isSubtotalOrTotal {
 				ha = excelHAlign(hStyle.Alignment)
@@ -734,7 +1209,7 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 				isHeaderStyle = true
 				locked = true
 			}
-			bID, err := getStyle(isHeaderStyle, fill, ha, va, nf, locked)
+			bID, err := getStyle(isHeaderStyle, fill, fontOverride, ha, va, nf, locked)
 			if err != nil {
 				return err
 			}
@@ -790,7 +1265,7 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 					_ = f.SetCellFormula(sheet, cell, formula)
 				}
 				if err := writeRow(subRow, nil, true, zebraDataIdx); err != nil {
-					return excelSheetMeta{}, nil, err
+					return excelSheetMeta{}, nil, nil, err
 				}
 				subtotalRows = append(subtotalRows, subRow)
 				currentRow++
@@ -800,7 +1275,7 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 		}
 
 		if err := writeRow(currentRow, item, false, zebraDataIdx); err != nil {
-			return excelSheetMeta{}, nil, err
+			return excelSheetMeta{}, nil, nil, err
 		}
 		if currentRow > dataRowMax {
 			dataRowMax = currentRow
@@ -822,7 +1297,7 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 			_ = f.SetCellFormula(sheet, cell, formula)
 		}
 		if err := writeRow(subRow, nil, true, zebraDataIdx); err != nil {
-			return excelSheetMeta{}, nil, err
+			return excelSheetMeta{}, nil, nil, err
 		}
 		subtotalRows = append(subtotalRows, subRow)
 		currentRow++
@@ -862,7 +1337,7 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 			_ = f.SetCellFormula(sheet, cell, formula)
 		}
 		if err := writeRow(meta.TotalRow, nil, true, zebraDataIdx); err != nil {
-			return excelSheetMeta{}, nil, err
+			return excelSheetMeta{}, nil, nil, err
 		}
 		currentRow++
 	}
@@ -870,7 +1345,7 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 	// Apply percentageOf formulas after total row exists.
 	if len(percentagePending) > 0 {
 		if meta.TotalRow == 0 {
-			return excelSheetMeta{}, nil, fmt.Errorf("percentageOf requires a total row; enable layout.showTotalRow or add an aggregate")
+			return excelSheetMeta{}, nil, nil, fmt.Errorf("percentageOf requires a total row; enable layout.showTotalRow or add an aggregate")
 		}
 		for _, p := range percentagePending {
 			cell := fmt.Sprintf("%s%d", p.colLetter, p.row)
@@ -894,18 +1369,83 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 		if c.CellType != models.ExcelCellSelect {
 			continue
 		}
-		if len(c.Options) == 0 {
-			return excelSheetMeta{}, nil, fmt.Errorf("column '%s': options is required when cellType is Select", c.Field)
-		}
 		colLetter, _ := excelize.ColumnNumberToName(cIdx + 1)
 		sqref := fmt.Sprintf("%s2:%s%d", colLetter, colLetter, maxInt(2, lastRow))
 		dv := excelize.NewDataValidation(true)
 		dv.SetSqref(sqref)
-		if err := dv.SetDropList(c.Options); err != nil {
-			return excelSheetMeta{}, nil, err
+		if strings.TrimSpace(c.ValidationRange) != "" {
+			dv.SetSqrefDropList(strings.TrimSpace(c.ValidationRange))
+		} else {
+			if len(c.Options) == 0 {
+				return excelSheetMeta{}, nil, nil, fmt.Errorf("column '%s': options or validationRange is required when cellType is Select", c.Field)
+			}
+			if err := dv.SetDropList(c.Options); err != nil {
+				return excelSheetMeta{}, nil, nil, err
+			}
 		}
 		dv.SetError(excelize.DataValidationErrorStyleStop, "Invalid value", "Select a value from the list")
 		_ = f.AddDataValidation(sheet, dv)
+	}
+
+	// Conditional formatting (per column).
+	if lastRow >= 2 {
+		condStyleCache := map[string]int{}
+		newCondStyle := func(bg string, fg string) (*int, error) {
+			bg = strings.TrimSpace(bg)
+			fg = strings.TrimSpace(fg)
+			if bg == "" && fg == "" {
+				return nil, nil
+			}
+			key := fmt.Sprintf("bg=%s|fg=%s", bg, fg)
+			if id, ok := condStyleCache[key]; ok {
+				return &id, nil
+			}
+			st := &excelize.Style{}
+			if fg != "" {
+				st.Font = &excelize.Font{Color: v2NormalizeHexColor(fg)}
+			}
+			if bg != "" {
+				st.Fill = excelize.Fill{Type: "pattern", Color: []string{v2NormalizeHexColor(bg)}, Pattern: 1}
+			}
+			id, err := f.NewConditionalStyle(st)
+			if err != nil {
+				return nil, err
+			}
+			condStyleCache[key] = id
+			return &id, nil
+		}
+
+		for cIdx, c := range cols {
+			if len(c.ConditionalFormatting) == 0 {
+				continue
+			}
+			colLetter, _ := excelize.ColumnNumberToName(cIdx + 1)
+			rng := fmt.Sprintf("%s2:%s%d", colLetter, colLetter, lastRow)
+			opts := make([]excelize.ConditionalFormatOptions, 0, len(c.ConditionalFormatting))
+			for _, r := range c.ConditionalFormatting {
+				fmtID, err := newCondStyle(r.BackgroundColor, r.TextColor)
+				if err != nil {
+					return excelSheetMeta{}, nil, nil, err
+				}
+				switch r.Operator {
+				case models.ExcelCondGreaterThan:
+					opts = append(opts, excelize.ConditionalFormatOptions{Type: "cell", Criteria: ">", Format: fmtID, Value: strings.TrimSpace(r.Value)})
+				case models.ExcelCondLessThan:
+					opts = append(opts, excelize.ConditionalFormatOptions{Type: "cell", Criteria: "<", Format: fmtID, Value: strings.TrimSpace(r.Value)})
+				case models.ExcelCondEqual:
+					opts = append(opts, excelize.ConditionalFormatOptions{Type: "cell", Criteria: "==", Format: fmtID, Value: strings.TrimSpace(r.Value)})
+				case models.ExcelCondContainsText:
+					opts = append(opts, excelize.ConditionalFormatOptions{Type: "text", Criteria: "containsText", Format: fmtID, Value: strings.TrimSpace(r.Value)})
+				case models.ExcelCondFormula:
+					opts = append(opts, excelize.ConditionalFormatOptions{Type: "formula", Criteria: strings.TrimSpace(r.Formula), Format: fmtID})
+				default:
+					return excelSheetMeta{}, nil, nil, fmt.Errorf("column '%s': unknown conditional operator '%s'", c.Field, r.Operator)
+				}
+			}
+			if err := f.SetConditionalFormat(sheet, rng, opts); err != nil {
+				return excelSheetMeta{}, nil, nil, err
+			}
+		}
 	}
 
 	// Hide rows and columns beyond visible limit.
@@ -937,7 +1477,7 @@ func v2RenderExcelSheet(f *excelize.File, sheet string, req models.DocumentReque
 			}
 		}
 	}
-	return meta, pending, nil
+	return meta, pending, pendingLookups, nil
 }
 
 func v2ExcelWrappedLineCount(s string, widthChars float64) int {
