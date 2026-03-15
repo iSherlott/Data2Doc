@@ -20,10 +20,7 @@ func NewGenerateHandler(documentService *service.DocumentService) *GenerateHandl
 }
 
 func baseNameFromRequest(c *gin.Context) string {
-	baseName := strings.TrimSpace(c.Query("id"))
-	if baseName == "" {
-		baseName = strings.TrimSpace(c.GetHeader("X-Request-Id"))
-	}
+	baseName := strings.TrimSpace(c.GetHeader("X-Request-Id"))
 	if baseName == "" {
 		baseName = "document"
 	}
@@ -38,7 +35,6 @@ func baseNameFromRequest(c *gin.Context) string {
 // @Accept       json
 // @Accept       xml
 // @Produce      application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-// @Param        id       query    string                    false  "base filename (without extension)"
 // @Param        request  body     models.ExcelGenerateRequest true   "Excel request"
 // @Success      200      {file}   file
 // @Failure      400      {object} map[string]string
@@ -62,13 +58,9 @@ func (h *GenerateHandler) GenerateExcel(c *gin.Context) {
 		return
 	}
 
-	gen, err := h.documentService.GenerateV2(docReq)
+	gen, err := h.documentService.Generate(docReq)
 	if err != nil {
-		status := http.StatusBadRequest
-		if service.IsTemplateNotFound(err) {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -85,7 +77,6 @@ func (h *GenerateHandler) GenerateExcel(c *gin.Context) {
 // @Accept       json
 // @Accept       xml
 // @Produce      application/pdf
-// @Param        id       query    string                  false  "base filename (without extension)"
 // @Param        request  body     models.PDFGenerateRequest true   "PDF request"
 // @Success      200      {file}   file
 // @Failure      400      {object} map[string]string
@@ -109,13 +100,9 @@ func (h *GenerateHandler) GeneratePDF(c *gin.Context) {
 		return
 	}
 
-	gen, err := h.documentService.GenerateV2(docReq)
+	gen, err := h.documentService.Generate(docReq)
 	if err != nil {
-		status := http.StatusBadRequest
-		if service.IsTemplateNotFound(err) {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -132,7 +119,6 @@ func (h *GenerateHandler) GeneratePDF(c *gin.Context) {
 // @Accept       json
 // @Accept       xml
 // @Produce      application/vnd.openxmlformats-officedocument.wordprocessingml.document
-// @Param        id       query    string                   false  "base filename (without extension)"
 // @Param        request  body     models.WordGenerateRequest true   "Word request"
 // @Success      200      {file}   file
 // @Failure      400      {object} map[string]string
@@ -156,13 +142,9 @@ func (h *GenerateHandler) GenerateWord(c *gin.Context) {
 		return
 	}
 
-	gen, err := h.documentService.GenerateV2(docReq)
+	gen, err := h.documentService.Generate(docReq)
 	if err != nil {
-		status := http.StatusBadRequest
-		if service.IsTemplateNotFound(err) {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

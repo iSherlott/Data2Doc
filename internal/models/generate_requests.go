@@ -8,9 +8,8 @@ import (
 // ExcelGenerateRequest is the request body for POST /generate/excel.
 // It intentionally only exposes options relevant to Excel generation.
 type ExcelGenerateRequest struct {
-	TemplateID string             `json:"templateId,omitempty" xml:"TemplateId,omitempty" example:"default"`
-	Layout     *ExcelLayoutConfig `json:"layout,omitempty" xml:"Layout,omitempty"`
-	Data       DataPayload        `json:"data" xml:"Data" swaggertype:"object"`
+	Layout *ExcelLayoutConfig `json:"layout,omitempty" xml:"Layout,omitempty"`
+	Data   DataPayload        `json:"data" xml:"Data" swaggertype:"object"`
 }
 
 func (r *ExcelGenerateRequest) Validate() error {
@@ -52,6 +51,43 @@ func (r *ExcelGenerateRequest) Validate() error {
 	if r.Data.IsEmpty() {
 		return fmt.Errorf("data is required and must contain at least one item with keys")
 	}
+	if r.Layout != nil {
+		validateDataset := func(dsName string, data DynamicData) error {
+			if r.Layout.MaxVisibleRows > 0 && len(data.Items) > r.Layout.MaxVisibleRows {
+				return fmt.Errorf("maxVisibleRows must be >= number of records (dataset '%s')", dsName)
+			}
+			if r.Layout.FreezeColumns > 0 {
+				colCount := len(r.Layout.Columns)
+				if colCount == 0 {
+					if len(data.Order) > 0 {
+						colCount = len(data.Order)
+					} else if len(data.Items) > 0 {
+						colCount = len(data.Items[0])
+					}
+				}
+				if colCount > 0 && r.Layout.FreezeColumns > colCount {
+					return fmt.Errorf("freezeColumns must be <= number of columns (dataset '%s')", dsName)
+				}
+			}
+			return nil
+		}
+
+		if len(r.Layout.Sheets) > 0 {
+			for _, sh := range r.Layout.Sheets {
+				name := strings.TrimSpace(sh.DataSource)
+				if name == "" {
+					name = "default"
+				}
+				if err := validateDataset(name, r.Data.Get(sh.DataSource)); err != nil {
+					return err
+				}
+			}
+		} else {
+			if err := validateDataset("default", r.Data.Default); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -75,10 +111,9 @@ func (r *ExcelGenerateRequest) normalizeDefaultDataset() {
 
 func (r ExcelGenerateRequest) ToDocumentRequest() DocumentRequest {
 	out := DocumentRequest{
-		Format:     DocumentFormatExcel,
-		TemplateID: r.TemplateID,
-		Layout:     nil,
-		Data:       r.Data,
+		Format: DocumentFormatExcel,
+		Layout: nil,
+		Data:   r.Data,
 	}
 	if r.Layout != nil {
 		out.Layout = r.Layout.ToLayoutConfig()
@@ -89,28 +124,79 @@ func (r ExcelGenerateRequest) ToDocumentRequest() DocumentRequest {
 // PDFGenerateRequest is the request body for POST /generate/pdf.
 // It intentionally only exposes options relevant to PDF generation.
 type PDFGenerateRequest struct {
-	TemplateID string           `json:"templateId,omitempty" xml:"TemplateId,omitempty" example:"default"`
-	Layout     *PDFLayoutConfig `json:"layout,omitempty" xml:"Layout,omitempty"`
-	Data       DynamicData      `json:"data" xml:"Data" swaggertype:"object"`
+	Layout *PDFLayoutConfig `json:"layout,omitempty" xml:"Layout,omitempty"`
+	Data   DataPayload      `json:"data" xml:"Data" swaggertype:"object"`
 }
 
 func (r *PDFGenerateRequest) Validate() error {
+	r.normalizeDefaultDataset()
+
 	if err := r.Layout.Validate(); err != nil {
 		return err
 	}
-	if r.Data.IsEmpty() {
+
+	// Builder mode: allow data to be empty when no block requires a dataset.
+	blocks := []PDFBlockConfig(nil)
+	if r.Layout != nil {
+		blocks = r.Layout.Blocks
+	}
+	if len(blocks) > 0 {
+		needsData := false
+		for i := range blocks {
+			b := blocks[i]
+			switch b.Type {
+			case PDFBlockTable, PDFBlockChart:
+				needsData = true
+				ds := r.Data.Get(b.DataSource)
+				if ds.IsEmpty() {
+					dsName := strings.TrimSpace(b.DataSource)
+					if dsName == "" {
+						dsName = "default"
+					}
+					return fmt.Errorf("dataSource '%s' (blocks[%d]) is empty or missing", dsName, i)
+				}
+			}
+		}
+		if needsData {
+			return nil
+		}
+		// No dataset-backed blocks => data can be empty.
+		return nil
+	}
+
+	// Legacy mode: expects a single dataset as default.
+	if r.Data.Default.IsEmpty() {
+		if len(r.Data.Sources) > 0 {
+			return fmt.Errorf("default dataset is required when layout.blocks is omitted; otherwise send layout.blocks and reference dataSource datasets")
+		}
 		return fmt.Errorf("data is required and must contain at least one item with keys")
 	}
 	return nil
 }
 
+func (r *PDFGenerateRequest) normalizeDefaultDataset() {
+	if r == nil {
+		return
+	}
+	if !r.Data.Default.IsEmpty() {
+		return
+	}
+	if len(r.Data.Sources) != 1 {
+		return
+	}
+	for _, d := range r.Data.Sources {
+		if !d.IsEmpty() {
+			r.Data.Default = d
+			return
+		}
+	}
+}
+
 func (r PDFGenerateRequest) ToDocumentRequest() DocumentRequest {
-	payload := DataPayload{Default: r.Data}
 	out := DocumentRequest{
-		Format:     DocumentFormatPDF,
-		TemplateID: r.TemplateID,
-		Layout:     nil,
-		Data:       payload,
+		Format: DocumentFormatPDF,
+		Layout: nil,
+		Data:   r.Data,
 	}
 	if r.Layout != nil {
 		out.Layout = r.Layout.ToLayoutConfig()
@@ -121,28 +207,78 @@ func (r PDFGenerateRequest) ToDocumentRequest() DocumentRequest {
 // WordGenerateRequest is the request body for POST /generate/word.
 // It intentionally only exposes options relevant to Word (DOCX) generation.
 type WordGenerateRequest struct {
-	TemplateID string            `json:"templateId,omitempty" xml:"TemplateId,omitempty" example:"default"`
-	Layout     *WordLayoutConfig `json:"layout,omitempty" xml:"Layout,omitempty"`
-	Data       DynamicData       `json:"data" xml:"Data" swaggertype:"object"`
+	Layout *WordLayoutConfig `json:"layout,omitempty" xml:"Layout,omitempty"`
+	Data   DataPayload       `json:"data" xml:"Data" swaggertype:"object"`
 }
 
 func (r *WordGenerateRequest) Validate() error {
+	r.normalizeDefaultDataset()
+
 	if err := r.Layout.Validate(); err != nil {
 		return err
 	}
-	if r.Data.IsEmpty() {
+
+	// Builder mode: allow data to be empty when no block requires a dataset.
+	blocks := []PDFBlockConfig(nil)
+	if r.Layout != nil {
+		blocks = r.Layout.Blocks
+	}
+	if len(blocks) > 0 {
+		needsData := false
+		for i := range blocks {
+			b := blocks[i]
+			switch b.Type {
+			case PDFBlockTable, PDFBlockChart:
+				needsData = true
+				ds := r.Data.Get(b.DataSource)
+				if ds.IsEmpty() {
+					dsName := strings.TrimSpace(b.DataSource)
+					if dsName == "" {
+						dsName = "default"
+					}
+					return fmt.Errorf("dataSource '%s' (blocks[%d]) is empty or missing", dsName, i)
+				}
+			}
+		}
+		if needsData {
+			return nil
+		}
+		return nil
+	}
+
+	// Legacy mode: expects a single dataset as default.
+	if r.Data.Default.IsEmpty() {
+		if len(r.Data.Sources) > 0 {
+			return fmt.Errorf("default dataset is required when layout.blocks is omitted; otherwise send layout.blocks and reference dataSource datasets")
+		}
 		return fmt.Errorf("data is required and must contain at least one item with keys")
 	}
 	return nil
 }
 
+func (r *WordGenerateRequest) normalizeDefaultDataset() {
+	if r == nil {
+		return
+	}
+	if !r.Data.Default.IsEmpty() {
+		return
+	}
+	if len(r.Data.Sources) != 1 {
+		return
+	}
+	for _, d := range r.Data.Sources {
+		if !d.IsEmpty() {
+			r.Data.Default = d
+			return
+		}
+	}
+}
+
 func (r WordGenerateRequest) ToDocumentRequest() DocumentRequest {
-	payload := DataPayload{Default: r.Data}
 	out := DocumentRequest{
-		Format:     DocumentFormatWord,
-		TemplateID: r.TemplateID,
-		Layout:     nil,
-		Data:       payload,
+		Format: DocumentFormatWord,
+		Layout: nil,
+		Data:   r.Data,
 	}
 	if r.Layout != nil {
 		out.Layout = r.Layout.ToLayoutConfig()
@@ -157,11 +293,36 @@ type ExcelColumnConfig struct {
 	Alignment         ColumnAlignmentEnum   `json:"alignment,omitempty" xml:"Alignment,omitempty" example:"left"`
 	VerticalAlignment VerticalAlignmentEnum `json:"verticalAlignment,omitempty" xml:"VerticalAlignment,omitempty" example:"Middle"`
 	Format            ColumnFormatEnum      `json:"format,omitempty" xml:"Format,omitempty" example:"currency"`
+
+	// Excel calculation features
+	Formula      string `json:"formula,omitempty" xml:"Formula,omitempty" example:"price * qty"`
+	SheetFormula string `json:"sheetFormula,omitempty" xml:"SheetFormula,omitempty" example:"SUM(Employees!B2:B100)"`
+	Aggregate    string `json:"aggregate,omitempty" xml:"Aggregate,omitempty" example:"sum"`
+	PercentageOf string `json:"percentageOf,omitempty" xml:"PercentageOf,omitempty" example:"salary"`
+
+	CellType ExcelCellTypeEnum `json:"cellType,omitempty" xml:"CellType,omitempty" example:"Select"`
+	Options  []string          `json:"options,omitempty" xml:"Options>Option,omitempty"`
+	Hidden   bool              `json:"hidden,omitempty" xml:"Hidden,omitempty"`
+	Locked   bool              `json:"locked,omitempty" xml:"Locked,omitempty"`
 }
 
 func (c ExcelColumnConfig) Validate() error {
 	if strings.TrimSpace(c.Field) == "" {
 		return fmt.Errorf("column.field is required")
+	}
+	if strings.TrimSpace(c.Formula) != "" && strings.TrimSpace(c.SheetFormula) != "" {
+		return fmt.Errorf("column.formula and column.sheetFormula are mutually exclusive")
+	}
+	if strings.TrimSpace(c.Aggregate) != "" {
+		agg := strings.ToLower(strings.TrimSpace(c.Aggregate))
+		if agg != "sum" {
+			return fmt.Errorf("column.aggregate is invalid")
+		}
+	}
+	if strings.TrimSpace(c.PercentageOf) != "" {
+		if strings.TrimSpace(c.PercentageOf) == strings.TrimSpace(c.Field) {
+			return fmt.Errorf("column.percentageOf cannot reference itself")
+		}
 	}
 	if c.Width < 0 {
 		return fmt.Errorf("column.width must be >= 0")
@@ -171,6 +332,19 @@ func (c ExcelColumnConfig) Validate() error {
 	}
 	if c.Format != "" && !c.Format.IsValid() {
 		return fmt.Errorf("column.format is invalid")
+	}
+	if c.CellType != "" && !c.CellType.IsValid() {
+		return fmt.Errorf("column.cellType is invalid")
+	}
+	if c.CellType == ExcelCellSelect {
+		if len(c.Options) == 0 {
+			return fmt.Errorf("column.options is required when cellType is Select")
+		}
+		for i := range c.Options {
+			if strings.TrimSpace(c.Options[i]) == "" {
+				return fmt.Errorf("column.options[%d] must be non-empty", i)
+			}
+		}
 	}
 	return nil
 }
@@ -203,6 +377,11 @@ type ExcelLayoutConfig struct {
 	DefaultFont     *DefaultFontConfig  `json:"defaultFont,omitempty" xml:"DefaultFont,omitempty"`
 	AutoSizeColumns bool                `json:"autoSizeColumns,omitempty" xml:"AutoSizeColumns,omitempty"`
 	FreezeHeader    bool                `json:"freezeHeader,omitempty" xml:"FreezeHeader,omitempty"`
+	FreezeColumns   int                 `json:"freezeColumns,omitempty" xml:"FreezeColumns,omitempty" example:"1"`
+	HideEmptyRows   bool                `json:"hideEmptyRows,omitempty" xml:"HideEmptyRows,omitempty"`
+	MaxVisibleRows  int                 `json:"maxVisibleRows,omitempty" xml:"MaxVisibleRows,omitempty" example:"100"`
+	GroupBy         string              `json:"groupBy,omitempty" xml:"GroupBy,omitempty" example:"department"`
+	ShowTotalRow    bool                `json:"showTotalRow,omitempty" xml:"ShowTotalRow,omitempty"`
 	Sheets          []SheetConfig       `json:"sheets,omitempty" xml:"Sheets>Sheet,omitempty"`
 	Header          *StyleConfig        `json:"header,omitempty" xml:"Header,omitempty"`
 	Body            *StyleConfig        `json:"body,omitempty" xml:"Body,omitempty"`
@@ -221,6 +400,12 @@ func (l *ExcelLayoutConfig) Validate() error {
 	}
 	if err := l.DefaultFont.Validate(); err != nil {
 		return err
+	}
+	if l.FreezeColumns < 0 {
+		return fmt.Errorf("freezeColumns must be >= 0")
+	}
+	if l.MaxVisibleRows < 0 {
+		return fmt.Errorf("maxVisibleRows must be >= 0")
 	}
 	if err := l.Header.Validate(); err != nil {
 		return fmt.Errorf("header: %w", err)
@@ -257,6 +442,11 @@ func (l *ExcelLayoutConfig) ToLayoutConfig() *LayoutConfig {
 		DefaultFont:     l.DefaultFont,
 		AutoSizeColumns: l.AutoSizeColumns,
 		FreezeHeader:    l.FreezeHeader,
+		FreezeColumns:   l.FreezeColumns,
+		HideEmptyRows:   l.HideEmptyRows,
+		MaxVisibleRows:  l.MaxVisibleRows,
+		GroupBy:         l.GroupBy,
+		ShowTotalRow:    l.ShowTotalRow,
 		Sheets:          l.Sheets,
 		Header:          l.Header,
 		Body:            l.Body,
@@ -271,6 +461,14 @@ func (l *ExcelLayoutConfig) ToLayoutConfig() *LayoutConfig {
 				Alignment:         c.Alignment,
 				VerticalAlignment: c.VerticalAlignment,
 				Format:            c.Format,
+				Formula:           c.Formula,
+				SheetFormula:      c.SheetFormula,
+				Aggregate:         c.Aggregate,
+				PercentageOf:      c.PercentageOf,
+				CellType:          c.CellType,
+				Options:           c.Options,
+				Hidden:            c.Hidden,
+				Locked:            c.Locked,
 			})
 		}
 	}
@@ -283,11 +481,14 @@ type PDFLayoutConfig struct {
 	PageMargin           *PageMarginConfig   `json:"pageMargin,omitempty" xml:"PageMargin,omitempty"`
 	UsePageContentBounds *bool               `json:"usePageContentBounds,omitempty" xml:"UsePageContentBounds,omitempty"`
 	DefaultFont          *DefaultFontConfig  `json:"defaultFont,omitempty" xml:"DefaultFont,omitempty"`
+	PageBreak            *PageBreakConfig    `json:"pageBreak,omitempty" xml:"PageBreak,omitempty"`
+	Spacing              *SpacingConfig      `json:"spacing,omitempty" xml:"Spacing,omitempty"`
 	Header               *StyleConfig        `json:"header,omitempty" xml:"Header,omitempty"`
 	Body                 *StyleConfig        `json:"body,omitempty" xml:"Body,omitempty"`
 	Footer               *FooterConfig       `json:"footer,omitempty" xml:"Footer,omitempty"`
 	HeaderImage          *HeaderImageConfig  `json:"headerImage,omitempty" xml:"HeaderImage,omitempty"`
 	Columns              []TableColumnConfig `json:"columns,omitempty" xml:"Columns>Column,omitempty"`
+	Blocks               []PDFBlockConfig    `json:"blocks,omitempty" xml:"Blocks>Block,omitempty"`
 }
 
 func (l *PDFLayoutConfig) Validate() error {
@@ -303,6 +504,12 @@ func (l *PDFLayoutConfig) Validate() error {
 	if err := l.DefaultFont.Validate(); err != nil {
 		return err
 	}
+	if err := l.PageBreak.Validate(); err != nil {
+		return err
+	}
+	if err := l.Spacing.Validate(); err != nil {
+		return err
+	}
 	if err := l.Header.Validate(); err != nil {
 		return fmt.Errorf("header: %w", err)
 	}
@@ -314,6 +521,11 @@ func (l *PDFLayoutConfig) Validate() error {
 	}
 	if err := l.HeaderImage.Validate(); err != nil {
 		return fmt.Errorf("headerImage: %w", err)
+	}
+	for i := range l.Blocks {
+		if err := l.Blocks[i].Validate(); err != nil {
+			return fmt.Errorf("blocks[%d]: %w", i, err)
+		}
 	}
 	seenFields := map[string]bool{}
 	for i := range l.Columns {
@@ -338,10 +550,13 @@ func (l *PDFLayoutConfig) ToLayoutConfig() *LayoutConfig {
 		PageMargin:           l.PageMargin,
 		UsePageContentBounds: l.UsePageContentBounds,
 		DefaultFont:          l.DefaultFont,
+		PageBreak:            l.PageBreak,
+		Spacing:              l.Spacing,
 		Header:               l.Header,
 		Body:                 l.Body,
 		Footer:               l.Footer,
 		HeaderImage:          l.HeaderImage,
+		Blocks:               l.Blocks,
 	}
 	if len(l.Columns) > 0 {
 		out.Columns = make([]ColumnConfig, 0, len(l.Columns))
@@ -360,6 +575,7 @@ func (l *PDFLayoutConfig) ToLayoutConfig() *LayoutConfig {
 
 // WordLayoutConfig is a subset of LayoutConfig that is relevant to Word (DOCX).
 type WordLayoutConfig struct {
+	Word            *WordConfig         `json:"word,omitempty" xml:"Word,omitempty"`
 	PageOrientation PageOrientationEnum `json:"pageOrientation,omitempty" xml:"PageOrientation,omitempty" example:"Portrait"`
 	PageMargin      *PageMarginConfig   `json:"pageMargin,omitempty" xml:"PageMargin,omitempty"`
 	DefaultFont     *DefaultFontConfig  `json:"defaultFont,omitempty" xml:"DefaultFont,omitempty"`
@@ -368,11 +584,32 @@ type WordLayoutConfig struct {
 	Body            *StyleConfig        `json:"body,omitempty" xml:"Body,omitempty"`
 	Footer          *FooterConfig       `json:"footer,omitempty" xml:"Footer,omitempty"`
 	Columns         []TableColumnConfig `json:"columns,omitempty" xml:"Columns>Column,omitempty"`
+	Blocks          []PDFBlockConfig    `json:"blocks,omitempty" xml:"Blocks>Block,omitempty"`
+}
+
+// WordConfig groups Word-specific options under layout.word.*
+type WordConfig struct {
+	IgnorePageMargins bool                    `json:"ignorePageMargins,omitempty" xml:"IgnorePageMargins,omitempty"`
+	CenterContent     *bool                   `json:"centerContent,omitempty" xml:"CenterContent,omitempty"`
+	PageOrientation   WordPageOrientationEnum `json:"pageOrientation,omitempty" xml:"PageOrientation,omitempty" example:"Landscape"`
+}
+
+func (w *WordConfig) Validate() error {
+	if w == nil {
+		return nil
+	}
+	if w.PageOrientation != "" && !w.PageOrientation.IsValid() {
+		return fmt.Errorf("layout.word.pageOrientation is invalid")
+	}
+	return nil
 }
 
 func (l *WordLayoutConfig) Validate() error {
 	if l == nil {
 		return nil
+	}
+	if err := l.Word.Validate(); err != nil {
+		return err
 	}
 	if l.PageOrientation != "" && !l.PageOrientation.IsValid() {
 		return fmt.Errorf("pageOrientation is invalid")
@@ -395,6 +632,11 @@ func (l *WordLayoutConfig) Validate() error {
 	if err := l.Footer.Validate(); err != nil {
 		return fmt.Errorf("footer: %w", err)
 	}
+	for i := range l.Blocks {
+		if err := l.Blocks[i].Validate(); err != nil {
+			return fmt.Errorf("blocks[%d]: %w", i, err)
+		}
+	}
 	seenFields := map[string]bool{}
 	for i := range l.Columns {
 		if err := l.Columns[i].Validate(); err != nil {
@@ -413,14 +655,39 @@ func (l *WordLayoutConfig) ToLayoutConfig() *LayoutConfig {
 	if l == nil {
 		return nil
 	}
+	pageOri := l.PageOrientation
+	useBounds := (*bool)(nil)
+	wordCenter := (*bool)(nil)
+	wordIgnoreMargins := false
+	if l.Word != nil {
+		if l.Word.PageOrientation != "" {
+			if l.Word.PageOrientation == WordLandscape {
+				pageOri = PageLandscape
+			} else {
+				pageOri = PagePortrait
+			}
+		}
+		if l.Word.CenterContent != nil {
+			wordCenter = l.Word.CenterContent
+		}
+		if l.Word.IgnorePageMargins {
+			wordIgnoreMargins = true
+			v := false
+			useBounds = &v
+		}
+	}
 	out := &LayoutConfig{
-		PageOrientation: l.PageOrientation,
-		PageMargin:      l.PageMargin,
-		DefaultFont:     l.DefaultFont,
-		PageBreak:       l.PageBreak,
-		Header:          l.Header,
-		Body:            l.Body,
-		Footer:          l.Footer,
+		PageOrientation:       pageOri,
+		PageMargin:            l.PageMargin,
+		DefaultFont:           l.DefaultFont,
+		PageBreak:             l.PageBreak,
+		Header:                l.Header,
+		Body:                  l.Body,
+		Footer:                l.Footer,
+		UsePageContentBounds:  useBounds,
+		WordIgnorePageMargins: wordIgnoreMargins,
+		WordCenterContent:     wordCenter,
+		Blocks:                l.Blocks,
 	}
 	if len(l.Columns) > 0 {
 		out.Columns = make([]ColumnConfig, 0, len(l.Columns))

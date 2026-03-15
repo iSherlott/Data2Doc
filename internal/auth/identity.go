@@ -14,10 +14,6 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-const (
-	defaultJWKSURL = "https://connect-staging.fi-group.com/identity/.well-known/openid-configuration/jwks"
-)
-
 var (
 	jwksOnce sync.Once
 	jwksInst *keyfunc.JWKS
@@ -28,7 +24,8 @@ func getJWKS() (*keyfunc.JWKS, error) {
 	jwksOnce.Do(func() {
 		jwksURL := strings.TrimSpace(os.Getenv("AUTH_JWKS_URL"))
 		if jwksURL == "" {
-			jwksURL = defaultJWKSURL
+			jwksErr = fmt.Errorf("%w: AUTH_JWKS_URL is required", ErrAuthConfig)
+			return
 		}
 
 		jwksInst, jwksErr = keyfunc.Get(jwksURL, keyfunc.Options{

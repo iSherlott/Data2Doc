@@ -36,18 +36,12 @@ const docTemplate = `{
                 "summary": "Generate an Excel document",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "base filename (without extension)",
-                        "name": "id",
-                        "in": "query"
-                    },
-                    {
                         "description": "Excel request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.ExcelGenerateRequest"
+                            "$ref": "#/definitions/Data2Doc_internal_models.ExcelGenerateRequest"
                         }
                     }
                 ],
@@ -109,18 +103,12 @@ const docTemplate = `{
                 "summary": "Generate a PDF document",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "base filename (without extension)",
-                        "name": "id",
-                        "in": "query"
-                    },
-                    {
                         "description": "PDF request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.PDFGenerateRequest"
+                            "$ref": "#/definitions/Data2Doc_internal_models.PDFGenerateRequest"
                         }
                     }
                 ],
@@ -182,18 +170,12 @@ const docTemplate = `{
                 "summary": "Generate a Word (DOCX) document",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "base filename (without extension)",
-                        "name": "id",
-                        "in": "query"
-                    },
-                    {
                         "description": "Word request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.WordGenerateRequest"
+                            "$ref": "#/definitions/Data2Doc_internal_models.WordGenerateRequest"
                         }
                     }
                 ],
@@ -236,7 +218,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "models.AlignmentEnum": {
+        "Data2Doc_internal_models.AlignmentEnum": {
             "type": "string",
             "enum": [
                 "left",
@@ -251,7 +233,24 @@ const docTemplate = `{
                 "AlignJustify"
             ]
         },
-        "models.ColumnAlignmentEnum": {
+        "Data2Doc_internal_models.ChartTypeEnum": {
+            "type": "string",
+            "enum": [
+                "Bar",
+                "Line",
+                "Pie",
+                "Area",
+                "Column"
+            ],
+            "x-enum-varnames": [
+                "ChartBar",
+                "ChartLine",
+                "ChartPie",
+                "ChartArea",
+                "ChartColumn"
+            ]
+        },
+        "Data2Doc_internal_models.ColumnAlignmentEnum": {
             "type": "string",
             "enum": [
                 "left",
@@ -264,7 +263,7 @@ const docTemplate = `{
                 "ColAlignRight"
             ]
         },
-        "models.ColumnFormatEnum": {
+        "Data2Doc_internal_models.ColumnFormatEnum": {
             "type": "string",
             "enum": [
                 "currency",
@@ -281,7 +280,7 @@ const docTemplate = `{
                 "ColFormatNumber"
             ]
         },
-        "models.DefaultFontConfig": {
+        "Data2Doc_internal_models.DefaultFontConfig": {
             "type": "object",
             "properties": {
                 "fontColor": {
@@ -291,7 +290,7 @@ const docTemplate = `{
                 "fontFamily": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.FontFamilyEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.FontFamilyEnum"
                         }
                     ],
                     "example": "Calibri"
@@ -302,16 +301,41 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ExcelColumnConfig": {
+        "Data2Doc_internal_models.ExcelCellTypeEnum": {
+            "type": "string",
+            "enum": [
+                "Text",
+                "Number",
+                "Currency",
+                "Date",
+                "Select"
+            ],
+            "x-enum-varnames": [
+                "ExcelCellText",
+                "ExcelCellNumber",
+                "ExcelCellCurrency",
+                "ExcelCellDate",
+                "ExcelCellSelect"
+            ]
+        },
+        "Data2Doc_internal_models.ExcelColumnConfig": {
             "type": "object",
             "properties": {
                 "alignment": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.ColumnAlignmentEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.ColumnAlignmentEnum"
                         }
                     ],
                     "example": "left"
+                },
+                "cellType": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Data2Doc_internal_models.ExcelCellTypeEnum"
+                        }
+                    ],
+                    "example": "Select"
                 },
                 "field": {
                     "type": "string",
@@ -320,10 +344,22 @@ const docTemplate = `{
                 "format": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.ColumnFormatEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.ColumnFormatEnum"
                         }
                     ],
                     "example": "currency"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "locked": {
+                    "type": "boolean"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "title": {
                     "type": "string",
@@ -332,7 +368,7 @@ const docTemplate = `{
                 "verticalAlignment": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.VerticalAlignmentEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.VerticalAlignmentEnum"
                         }
                     ],
                     "example": "Middle"
@@ -344,52 +380,59 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ExcelGenerateRequest": {
+        "Data2Doc_internal_models.ExcelGenerateRequest": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "object"
                 },
                 "layout": {
-                    "$ref": "#/definitions/models.ExcelLayoutConfig"
-                },
-                "templateId": {
-                    "type": "string",
-                    "example": "default"
+                    "$ref": "#/definitions/Data2Doc_internal_models.ExcelLayoutConfig"
                 }
             }
         },
-        "models.ExcelLayoutConfig": {
+        "Data2Doc_internal_models.ExcelLayoutConfig": {
             "type": "object",
             "properties": {
                 "autoSizeColumns": {
                     "type": "boolean"
                 },
                 "body": {
-                    "$ref": "#/definitions/models.StyleConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.StyleConfig"
                 },
                 "columns": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.ExcelColumnConfig"
+                        "$ref": "#/definitions/Data2Doc_internal_models.ExcelColumnConfig"
                     }
                 },
                 "defaultFont": {
-                    "$ref": "#/definitions/models.DefaultFontConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.DefaultFontConfig"
+                },
+                "freezeColumns": {
+                    "type": "integer",
+                    "example": 1
                 },
                 "freezeHeader": {
                     "type": "boolean"
                 },
                 "header": {
-                    "$ref": "#/definitions/models.StyleConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.StyleConfig"
+                },
+                "hideEmptyRows": {
+                    "type": "boolean"
+                },
+                "maxVisibleRows": {
+                    "type": "integer",
+                    "example": 100
                 },
                 "pageMargin": {
-                    "$ref": "#/definitions/models.PageMarginConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.PageMarginConfig"
                 },
                 "pageOrientation": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.PageOrientationEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.PageOrientationEnum"
                         }
                     ],
                     "example": "Portrait"
@@ -397,12 +440,12 @@ const docTemplate = `{
                 "sheets": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.SheetConfig"
+                        "$ref": "#/definitions/Data2Doc_internal_models.SheetConfig"
                     }
                 }
             }
         },
-        "models.FontFamilyEnum": {
+        "Data2Doc_internal_models.FontFamilyEnum": {
             "type": "string",
             "enum": [
                 "Calibri",
@@ -417,13 +460,13 @@ const docTemplate = `{
                 "FontHelvetica"
             ]
         },
-        "models.FooterConfig": {
+        "Data2Doc_internal_models.FooterConfig": {
             "type": "object",
             "properties": {
                 "alignment": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.AlignmentEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.AlignmentEnum"
                         }
                     ],
                     "example": "left"
@@ -445,7 +488,7 @@ const docTemplate = `{
                 "fontFamily": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.FontFamilyEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.FontFamilyEnum"
                         }
                     ],
                     "example": "Calibri"
@@ -458,7 +501,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "pageNumber": {
-                    "$ref": "#/definitions/models.PageNumberConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.PageNumberConfig"
                 },
                 "show": {
                     "type": "boolean"
@@ -469,7 +512,7 @@ const docTemplate = `{
                 "verticalAlignment": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.VerticalAlignmentEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.VerticalAlignmentEnum"
                         }
                     ],
                     "example": "Middle"
@@ -487,7 +530,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.HeaderImageConfig": {
+        "Data2Doc_internal_models.HeaderImageConfig": {
             "type": "object",
             "properties": {
                 "data": {
@@ -500,7 +543,7 @@ const docTemplate = `{
                 "fitMode": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.ImageFitModeEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.ImageFitModeEnum"
                         }
                     ],
                     "example": "Contain"
@@ -513,7 +556,7 @@ const docTemplate = `{
                 "horizontalAlignment": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.ColumnAlignmentEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.ColumnAlignmentEnum"
                         }
                     ],
                     "example": "center"
@@ -524,7 +567,7 @@ const docTemplate = `{
                 "position": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.ImagePositionEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.ImagePositionEnum"
                         }
                     ],
                     "example": "top-center"
@@ -534,7 +577,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ImageFitModeEnum": {
+        "Data2Doc_internal_models.ImageFitModeEnum": {
             "type": "string",
             "enum": [
                 "Contain",
@@ -549,7 +592,7 @@ const docTemplate = `{
                 "ImageFitCenter"
             ]
         },
-        "models.ImagePositionEnum": {
+        "Data2Doc_internal_models.ImagePositionEnum": {
             "type": "string",
             "enum": [
                 "top-left",
@@ -562,62 +605,201 @@ const docTemplate = `{
                 "ImageTopRight"
             ]
         },
-        "models.PDFGenerateRequest": {
+        "Data2Doc_internal_models.PDFBlockConfig": {
+            "type": "object",
+            "properties": {
+                "alignment": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Data2Doc_internal_models.AlignmentEnum"
+                        }
+                    ],
+                    "example": "center"
+                },
+                "categoryField": {
+                    "type": "string",
+                    "example": "department"
+                },
+                "chartType": {
+                    "description": "Chart",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Data2Doc_internal_models.ChartTypeEnum"
+                        }
+                    ],
+                    "example": "Bar"
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Data2Doc_internal_models.PDFTableColumnConfig"
+                    }
+                },
+                "content": {
+                    "description": "Common fields",
+                    "type": "string"
+                },
+                "data": {
+                    "description": "Image",
+                    "type": "string"
+                },
+                "dataSource": {
+                    "description": "Table",
+                    "type": "string",
+                    "example": "employees"
+                },
+                "height": {
+                    "type": "number",
+                    "example": 90
+                },
+                "style": {
+                    "$ref": "#/definitions/Data2Doc_internal_models.PDFTextStyleConfig"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Vendas por Departamento"
+                },
+                "type": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Data2Doc_internal_models.PDFBlockTypeEnum"
+                        }
+                    ],
+                    "example": "Text"
+                },
+                "valueField": {
+                    "type": "string",
+                    "example": "total"
+                },
+                "width": {
+                    "type": "number",
+                    "example": 160
+                }
+            }
+        },
+        "Data2Doc_internal_models.PDFBlockTypeEnum": {
+            "type": "string",
+            "enum": [
+                "Text",
+                "Table",
+                "Chart",
+                "Image",
+                "Spacer",
+                "SectionTitle"
+            ],
+            "x-enum-varnames": [
+                "PDFBlockText",
+                "PDFBlockTable",
+                "PDFBlockChart",
+                "PDFBlockImage",
+                "PDFBlockSpacer",
+                "PDFBlockSectionTitle"
+            ]
+        },
+        "Data2Doc_internal_models.PDFGenerateRequest": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "object"
                 },
                 "layout": {
-                    "$ref": "#/definitions/models.PDFLayoutConfig"
-                },
-                "templateId": {
-                    "type": "string",
-                    "example": "default"
+                    "$ref": "#/definitions/Data2Doc_internal_models.PDFLayoutConfig"
                 }
             }
         },
-        "models.PDFLayoutConfig": {
+        "Data2Doc_internal_models.PDFLayoutConfig": {
             "type": "object",
             "properties": {
+                "blocks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Data2Doc_internal_models.PDFBlockConfig"
+                    }
+                },
                 "body": {
-                    "$ref": "#/definitions/models.StyleConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.StyleConfig"
                 },
                 "columns": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.TableColumnConfig"
+                        "$ref": "#/definitions/Data2Doc_internal_models.TableColumnConfig"
                     }
                 },
                 "defaultFont": {
-                    "$ref": "#/definitions/models.DefaultFontConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.DefaultFontConfig"
                 },
                 "footer": {
-                    "$ref": "#/definitions/models.FooterConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.FooterConfig"
                 },
                 "header": {
-                    "$ref": "#/definitions/models.StyleConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.StyleConfig"
                 },
                 "headerImage": {
-                    "$ref": "#/definitions/models.HeaderImageConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.HeaderImageConfig"
+                },
+                "pageBreak": {
+                    "$ref": "#/definitions/Data2Doc_internal_models.PageBreakConfig"
                 },
                 "pageMargin": {
-                    "$ref": "#/definitions/models.PageMarginConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.PageMarginConfig"
                 },
                 "pageOrientation": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.PageOrientationEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.PageOrientationEnum"
                         }
                     ],
                     "example": "Portrait"
+                },
+                "spacing": {
+                    "$ref": "#/definitions/Data2Doc_internal_models.SpacingConfig"
                 },
                 "usePageContentBounds": {
                     "type": "boolean"
                 }
             }
         },
-        "models.PageBreakConfig": {
+        "Data2Doc_internal_models.PDFTableColumnConfig": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "type": "string",
+                    "example": "name"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Nome"
+                }
+            }
+        },
+        "Data2Doc_internal_models.PDFTextStyleConfig": {
+            "type": "object",
+            "properties": {
+                "alignment": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Data2Doc_internal_models.AlignmentEnum"
+                        }
+                    ],
+                    "example": "left"
+                },
+                "bold": {
+                    "type": "boolean"
+                },
+                "fontSize": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "italic": {
+                    "type": "boolean"
+                },
+                "lineSpacing": {
+                    "type": "number",
+                    "example": 1.2
+                }
+            }
+        },
+        "Data2Doc_internal_models.PageBreakConfig": {
             "type": "object",
             "properties": {
                 "enabled": {
@@ -629,7 +811,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.PageMarginConfig": {
+        "Data2Doc_internal_models.PageMarginConfig": {
             "type": "object",
             "properties": {
                 "bottom": {
@@ -650,7 +832,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.PageNumberConfig": {
+        "Data2Doc_internal_models.PageNumberConfig": {
             "type": "object",
             "properties": {
                 "enabled": {
@@ -659,14 +841,14 @@ const docTemplate = `{
                 "format": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.PageNumberFormatEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.PageNumberFormatEnum"
                         }
                     ],
                     "example": "Arabic"
                 }
             }
         },
-        "models.PageNumberFormatEnum": {
+        "Data2Doc_internal_models.PageNumberFormatEnum": {
             "type": "string",
             "enum": [
                 "Arabic",
@@ -681,7 +863,7 @@ const docTemplate = `{
                 "PageNumTextPageNum"
             ]
         },
-        "models.PageOrientationEnum": {
+        "Data2Doc_internal_models.PageOrientationEnum": {
             "type": "string",
             "enum": [
                 "Portrait",
@@ -692,7 +874,7 @@ const docTemplate = `{
                 "PageLandscape"
             ]
         },
-        "models.SheetConfig": {
+        "Data2Doc_internal_models.SheetConfig": {
             "type": "object",
             "properties": {
                 "dataSource": {
@@ -705,13 +887,26 @@ const docTemplate = `{
                 }
             }
         },
-        "models.StyleConfig": {
+        "Data2Doc_internal_models.SpacingConfig": {
+            "type": "object",
+            "properties": {
+                "paragraphSpacing": {
+                    "type": "number",
+                    "example": 10
+                },
+                "tableSpacing": {
+                    "type": "number",
+                    "example": 15
+                }
+            }
+        },
+        "Data2Doc_internal_models.StyleConfig": {
             "type": "object",
             "properties": {
                 "alignment": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.AlignmentEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.AlignmentEnum"
                         }
                     ],
                     "example": "left"
@@ -733,7 +928,7 @@ const docTemplate = `{
                 "fontFamily": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.FontFamilyEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.FontFamilyEnum"
                         }
                     ],
                     "example": "Calibri"
@@ -751,7 +946,7 @@ const docTemplate = `{
                 "verticalAlignment": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.VerticalAlignmentEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.VerticalAlignmentEnum"
                         }
                     ],
                     "example": "Middle"
@@ -769,13 +964,13 @@ const docTemplate = `{
                 }
             }
         },
-        "models.TableColumnConfig": {
+        "Data2Doc_internal_models.TableColumnConfig": {
             "type": "object",
             "properties": {
                 "alignment": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.ColumnAlignmentEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.ColumnAlignmentEnum"
                         }
                     ],
                     "example": "left"
@@ -791,7 +986,7 @@ const docTemplate = `{
                 "verticalAlignment": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.VerticalAlignmentEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.VerticalAlignmentEnum"
                         }
                     ],
                     "example": "Middle"
@@ -803,7 +998,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.VerticalAlignmentEnum": {
+        "Data2Doc_internal_models.VerticalAlignmentEnum": {
             "type": "string",
             "enum": [
                 "Top",
@@ -816,57 +1011,86 @@ const docTemplate = `{
                 "VAlignBottom"
             ]
         },
-        "models.WordGenerateRequest": {
+        "Data2Doc_internal_models.WordConfig": {
+            "type": "object",
+            "properties": {
+                "centerContent": {
+                    "type": "boolean"
+                },
+                "ignorePageMargins": {
+                    "type": "boolean"
+                },
+                "pageOrientation": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Data2Doc_internal_models.WordPageOrientationEnum"
+                        }
+                    ],
+                    "example": "Landscape"
+                }
+            }
+        },
+        "Data2Doc_internal_models.WordGenerateRequest": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "object"
                 },
                 "layout": {
-                    "$ref": "#/definitions/models.WordLayoutConfig"
-                },
-                "templateId": {
-                    "type": "string",
-                    "example": "default"
+                    "$ref": "#/definitions/Data2Doc_internal_models.WordLayoutConfig"
                 }
             }
         },
-        "models.WordLayoutConfig": {
+        "Data2Doc_internal_models.WordLayoutConfig": {
             "type": "object",
             "properties": {
                 "body": {
-                    "$ref": "#/definitions/models.StyleConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.StyleConfig"
                 },
                 "columns": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.TableColumnConfig"
+                        "$ref": "#/definitions/Data2Doc_internal_models.TableColumnConfig"
                     }
                 },
                 "defaultFont": {
-                    "$ref": "#/definitions/models.DefaultFontConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.DefaultFontConfig"
                 },
                 "footer": {
-                    "$ref": "#/definitions/models.FooterConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.FooterConfig"
                 },
                 "header": {
-                    "$ref": "#/definitions/models.StyleConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.StyleConfig"
                 },
                 "pageBreak": {
-                    "$ref": "#/definitions/models.PageBreakConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.PageBreakConfig"
                 },
                 "pageMargin": {
-                    "$ref": "#/definitions/models.PageMarginConfig"
+                    "$ref": "#/definitions/Data2Doc_internal_models.PageMarginConfig"
                 },
                 "pageOrientation": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.PageOrientationEnum"
+                            "$ref": "#/definitions/Data2Doc_internal_models.PageOrientationEnum"
                         }
                     ],
                     "example": "Portrait"
+                },
+                "word": {
+                    "$ref": "#/definitions/Data2Doc_internal_models.WordConfig"
                 }
             }
+        },
+        "Data2Doc_internal_models.WordPageOrientationEnum": {
+            "type": "string",
+            "enum": [
+                "Portrait",
+                "Landscape"
+            ],
+            "x-enum-varnames": [
+                "WordPortrait",
+                "WordLandscape"
+            ]
         }
     },
     "securityDefinitions": {

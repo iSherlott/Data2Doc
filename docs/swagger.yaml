@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  models.AlignmentEnum:
+  Data2Doc_internal_models.AlignmentEnum:
     enum:
     - left
     - center
@@ -12,7 +12,21 @@ definitions:
     - AlignCenter
     - AlignRight
     - AlignJustify
-  models.ColumnAlignmentEnum:
+  Data2Doc_internal_models.ChartTypeEnum:
+    enum:
+    - Bar
+    - Line
+    - Pie
+    - Area
+    - Column
+    type: string
+    x-enum-varnames:
+    - ChartBar
+    - ChartLine
+    - ChartPie
+    - ChartArea
+    - ChartColumn
+  Data2Doc_internal_models.ColumnAlignmentEnum:
     enum:
     - left
     - center
@@ -22,7 +36,7 @@ definitions:
     - ColAlignLeft
     - ColAlignCenter
     - ColAlignRight
-  models.ColumnFormatEnum:
+  Data2Doc_internal_models.ColumnFormatEnum:
     enum:
     - currency
     - date
@@ -36,82 +50,113 @@ definitions:
     - ColFormatDateTime
     - ColFormatPercentage
     - ColFormatNumber
-  models.DefaultFontConfig:
+  Data2Doc_internal_models.DefaultFontConfig:
     properties:
       fontColor:
         example: '#000000'
         type: string
       fontFamily:
         allOf:
-        - $ref: '#/definitions/models.FontFamilyEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.FontFamilyEnum'
         example: Calibri
       fontSize:
         example: 11
         type: integer
     type: object
-  models.ExcelColumnConfig:
+  Data2Doc_internal_models.ExcelCellTypeEnum:
+    enum:
+    - Text
+    - Number
+    - Currency
+    - Date
+    - Select
+    type: string
+    x-enum-varnames:
+    - ExcelCellText
+    - ExcelCellNumber
+    - ExcelCellCurrency
+    - ExcelCellDate
+    - ExcelCellSelect
+  Data2Doc_internal_models.ExcelColumnConfig:
     properties:
       alignment:
         allOf:
-        - $ref: '#/definitions/models.ColumnAlignmentEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.ColumnAlignmentEnum'
         example: left
+      cellType:
+        allOf:
+        - $ref: '#/definitions/Data2Doc_internal_models.ExcelCellTypeEnum'
+        example: Select
       field:
         example: name
         type: string
       format:
         allOf:
-        - $ref: '#/definitions/models.ColumnFormatEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.ColumnFormatEnum'
         example: currency
+      hidden:
+        type: boolean
+      locked:
+        type: boolean
+      options:
+        items:
+          type: string
+        type: array
       title:
         example: Name
         type: string
       verticalAlignment:
         allOf:
-        - $ref: '#/definitions/models.VerticalAlignmentEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.VerticalAlignmentEnum'
         example: Middle
       width:
         description: characters
         example: 20
         type: number
     type: object
-  models.ExcelGenerateRequest:
+  Data2Doc_internal_models.ExcelGenerateRequest:
     properties:
       data:
         type: object
       layout:
-        $ref: '#/definitions/models.ExcelLayoutConfig'
-      templateId:
-        example: default
-        type: string
+        $ref: '#/definitions/Data2Doc_internal_models.ExcelLayoutConfig'
     type: object
-  models.ExcelLayoutConfig:
+  Data2Doc_internal_models.ExcelLayoutConfig:
     properties:
       autoSizeColumns:
         type: boolean
       body:
-        $ref: '#/definitions/models.StyleConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.StyleConfig'
       columns:
         items:
-          $ref: '#/definitions/models.ExcelColumnConfig'
+          $ref: '#/definitions/Data2Doc_internal_models.ExcelColumnConfig'
         type: array
       defaultFont:
-        $ref: '#/definitions/models.DefaultFontConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.DefaultFontConfig'
+      freezeColumns:
+        example: 1
+        type: integer
       freezeHeader:
         type: boolean
       header:
-        $ref: '#/definitions/models.StyleConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.StyleConfig'
+      hideEmptyRows:
+        type: boolean
+      maxVisibleRows:
+        example: 100
+        type: integer
       pageMargin:
-        $ref: '#/definitions/models.PageMarginConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.PageMarginConfig'
       pageOrientation:
         allOf:
-        - $ref: '#/definitions/models.PageOrientationEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.PageOrientationEnum'
         example: Portrait
       sheets:
         items:
-          $ref: '#/definitions/models.SheetConfig'
+          $ref: '#/definitions/Data2Doc_internal_models.SheetConfig'
         type: array
     type: object
-  models.FontFamilyEnum:
+  Data2Doc_internal_models.FontFamilyEnum:
     enum:
     - Calibri
     - Arial
@@ -123,11 +168,11 @@ definitions:
     - FontArial
     - FontTimesNewRoman
     - FontHelvetica
-  models.FooterConfig:
+  Data2Doc_internal_models.FooterConfig:
     properties:
       alignment:
         allOf:
-        - $ref: '#/definitions/models.AlignmentEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.AlignmentEnum'
         example: left
       background:
         example: '#FFFFFF'
@@ -141,7 +186,7 @@ definitions:
         type: string
       fontFamily:
         allOf:
-        - $ref: '#/definitions/models.FontFamilyEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.FontFamilyEnum'
         example: Calibri
       fontSize:
         example: 11
@@ -149,14 +194,14 @@ definitions:
       italic:
         type: boolean
       pageNumber:
-        $ref: '#/definitions/models.PageNumberConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.PageNumberConfig'
       show:
         type: boolean
       underline:
         type: boolean
       verticalAlignment:
         allOf:
-        - $ref: '#/definitions/models.VerticalAlignmentEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.VerticalAlignmentEnum'
         example: Middle
       zebraColorEven:
         example: '#FFFFFF'
@@ -167,7 +212,7 @@ definitions:
       zebraStripe:
         type: boolean
     type: object
-  models.HeaderImageConfig:
+  Data2Doc_internal_models.HeaderImageConfig:
     properties:
       data:
         description: base64 or data-uri
@@ -176,7 +221,7 @@ definitions:
         type: boolean
       fitMode:
         allOf:
-        - $ref: '#/definitions/models.ImageFitModeEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.ImageFitModeEnum'
         example: Contain
       height:
         description: mm
@@ -184,18 +229,18 @@ definitions:
         type: number
       horizontalAlignment:
         allOf:
-        - $ref: '#/definitions/models.ColumnAlignmentEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.ColumnAlignmentEnum'
         example: center
       keepAspectRatio:
         type: boolean
       position:
         allOf:
-        - $ref: '#/definitions/models.ImagePositionEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.ImagePositionEnum'
         example: top-center
       stretch:
         type: boolean
     type: object
-  models.ImageFitModeEnum:
+  Data2Doc_internal_models.ImageFitModeEnum:
     enum:
     - Contain
     - Cover
@@ -207,7 +252,7 @@ definitions:
     - ImageFitCover
     - ImageFitStretch
     - ImageFitCenter
-  models.ImagePositionEnum:
+  Data2Doc_internal_models.ImagePositionEnum:
     enum:
     - top-left
     - top-center
@@ -217,42 +262,136 @@ definitions:
     - ImageTopLeft
     - ImageTopCenter
     - ImageTopRight
-  models.PDFGenerateRequest:
+  Data2Doc_internal_models.PDFBlockConfig:
+    properties:
+      alignment:
+        allOf:
+        - $ref: '#/definitions/Data2Doc_internal_models.AlignmentEnum'
+        example: center
+      categoryField:
+        example: department
+        type: string
+      chartType:
+        allOf:
+        - $ref: '#/definitions/Data2Doc_internal_models.ChartTypeEnum'
+        description: Chart
+        example: Bar
+      columns:
+        items:
+          $ref: '#/definitions/Data2Doc_internal_models.PDFTableColumnConfig'
+        type: array
+      content:
+        description: Common fields
+        type: string
+      data:
+        description: Image
+        type: string
+      dataSource:
+        description: Table
+        example: employees
+        type: string
+      height:
+        example: 90
+        type: number
+      style:
+        $ref: '#/definitions/Data2Doc_internal_models.PDFTextStyleConfig'
+      title:
+        example: Vendas por Departamento
+        type: string
+      type:
+        allOf:
+        - $ref: '#/definitions/Data2Doc_internal_models.PDFBlockTypeEnum'
+        example: Text
+      valueField:
+        example: total
+        type: string
+      width:
+        example: 160
+        type: number
+    type: object
+  Data2Doc_internal_models.PDFBlockTypeEnum:
+    enum:
+    - Text
+    - Table
+    - Chart
+    - Image
+    - Spacer
+    - SectionTitle
+    type: string
+    x-enum-varnames:
+    - PDFBlockText
+    - PDFBlockTable
+    - PDFBlockChart
+    - PDFBlockImage
+    - PDFBlockSpacer
+    - PDFBlockSectionTitle
+  Data2Doc_internal_models.PDFGenerateRequest:
     properties:
       data:
         type: object
       layout:
-        $ref: '#/definitions/models.PDFLayoutConfig'
-      templateId:
-        example: default
-        type: string
+        $ref: '#/definitions/Data2Doc_internal_models.PDFLayoutConfig'
     type: object
-  models.PDFLayoutConfig:
+  Data2Doc_internal_models.PDFLayoutConfig:
     properties:
+      blocks:
+        items:
+          $ref: '#/definitions/Data2Doc_internal_models.PDFBlockConfig'
+        type: array
       body:
-        $ref: '#/definitions/models.StyleConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.StyleConfig'
       columns:
         items:
-          $ref: '#/definitions/models.TableColumnConfig'
+          $ref: '#/definitions/Data2Doc_internal_models.TableColumnConfig'
         type: array
       defaultFont:
-        $ref: '#/definitions/models.DefaultFontConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.DefaultFontConfig'
       footer:
-        $ref: '#/definitions/models.FooterConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.FooterConfig'
       header:
-        $ref: '#/definitions/models.StyleConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.StyleConfig'
       headerImage:
-        $ref: '#/definitions/models.HeaderImageConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.HeaderImageConfig'
+      pageBreak:
+        $ref: '#/definitions/Data2Doc_internal_models.PageBreakConfig'
       pageMargin:
-        $ref: '#/definitions/models.PageMarginConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.PageMarginConfig'
       pageOrientation:
         allOf:
-        - $ref: '#/definitions/models.PageOrientationEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.PageOrientationEnum'
         example: Portrait
+      spacing:
+        $ref: '#/definitions/Data2Doc_internal_models.SpacingConfig'
       usePageContentBounds:
         type: boolean
     type: object
-  models.PageBreakConfig:
+  Data2Doc_internal_models.PDFTableColumnConfig:
+    properties:
+      field:
+        example: name
+        type: string
+      title:
+        example: Nome
+        type: string
+    type: object
+  Data2Doc_internal_models.PDFTextStyleConfig:
+    properties:
+      alignment:
+        allOf:
+        - $ref: '#/definitions/Data2Doc_internal_models.AlignmentEnum'
+        example: left
+      bold:
+        type: boolean
+      fontSize:
+        example: 12
+        type: integer
+      italic:
+        type: boolean
+      lineSpacing:
+        example: 1.2
+        type: number
+    type: object
+  Data2Doc_internal_models.PageBreakConfig:
     properties:
       enabled:
         type: boolean
@@ -260,7 +399,7 @@ definitions:
         example: 30
         type: integer
     type: object
-  models.PageMarginConfig:
+  Data2Doc_internal_models.PageMarginConfig:
     properties:
       bottom:
         example: 20
@@ -275,16 +414,16 @@ definitions:
         example: 20
         type: number
     type: object
-  models.PageNumberConfig:
+  Data2Doc_internal_models.PageNumberConfig:
     properties:
       enabled:
         type: boolean
       format:
         allOf:
-        - $ref: '#/definitions/models.PageNumberFormatEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.PageNumberFormatEnum'
         example: Arabic
     type: object
-  models.PageNumberFormatEnum:
+  Data2Doc_internal_models.PageNumberFormatEnum:
     enum:
     - Arabic
     - Roman
@@ -296,7 +435,7 @@ definitions:
     - PageNumRoman
     - PageNumRomanUpper
     - PageNumTextPageNum
-  models.PageOrientationEnum:
+  Data2Doc_internal_models.PageOrientationEnum:
     enum:
     - Portrait
     - Landscape
@@ -304,7 +443,7 @@ definitions:
     x-enum-varnames:
     - PagePortrait
     - PageLandscape
-  models.SheetConfig:
+  Data2Doc_internal_models.SheetConfig:
     properties:
       dataSource:
         example: employees
@@ -313,11 +452,20 @@ definitions:
         example: Funcionarios
         type: string
     type: object
-  models.StyleConfig:
+  Data2Doc_internal_models.SpacingConfig:
+    properties:
+      paragraphSpacing:
+        example: 10
+        type: number
+      tableSpacing:
+        example: 15
+        type: number
+    type: object
+  Data2Doc_internal_models.StyleConfig:
     properties:
       alignment:
         allOf:
-        - $ref: '#/definitions/models.AlignmentEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.AlignmentEnum'
         example: left
       background:
         example: '#FFFFFF'
@@ -331,7 +479,7 @@ definitions:
         type: string
       fontFamily:
         allOf:
-        - $ref: '#/definitions/models.FontFamilyEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.FontFamilyEnum'
         example: Calibri
       fontSize:
         example: 11
@@ -342,7 +490,7 @@ definitions:
         type: boolean
       verticalAlignment:
         allOf:
-        - $ref: '#/definitions/models.VerticalAlignmentEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.VerticalAlignmentEnum'
         example: Middle
       zebraColorEven:
         example: '#FFFFFF'
@@ -353,11 +501,11 @@ definitions:
       zebraStripe:
         type: boolean
     type: object
-  models.TableColumnConfig:
+  Data2Doc_internal_models.TableColumnConfig:
     properties:
       alignment:
         allOf:
-        - $ref: '#/definitions/models.ColumnAlignmentEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.ColumnAlignmentEnum'
         example: left
       field:
         example: name
@@ -367,14 +515,14 @@ definitions:
         type: string
       verticalAlignment:
         allOf:
-        - $ref: '#/definitions/models.VerticalAlignmentEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.VerticalAlignmentEnum'
         example: Middle
       width:
         description: relative
         example: 20
         type: number
     type: object
-  models.VerticalAlignmentEnum:
+  Data2Doc_internal_models.VerticalAlignmentEnum:
     enum:
     - Top
     - Middle
@@ -384,39 +532,57 @@ definitions:
     - VAlignTop
     - VAlignMiddle
     - VAlignBottom
-  models.WordGenerateRequest:
+  Data2Doc_internal_models.WordConfig:
+    properties:
+      centerContent:
+        type: boolean
+      ignorePageMargins:
+        type: boolean
+      pageOrientation:
+        allOf:
+        - $ref: '#/definitions/Data2Doc_internal_models.WordPageOrientationEnum'
+        example: Landscape
+    type: object
+  Data2Doc_internal_models.WordGenerateRequest:
     properties:
       data:
         type: object
       layout:
-        $ref: '#/definitions/models.WordLayoutConfig'
-      templateId:
-        example: default
-        type: string
+        $ref: '#/definitions/Data2Doc_internal_models.WordLayoutConfig'
     type: object
-  models.WordLayoutConfig:
+  Data2Doc_internal_models.WordLayoutConfig:
     properties:
       body:
-        $ref: '#/definitions/models.StyleConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.StyleConfig'
       columns:
         items:
-          $ref: '#/definitions/models.TableColumnConfig'
+          $ref: '#/definitions/Data2Doc_internal_models.TableColumnConfig'
         type: array
       defaultFont:
-        $ref: '#/definitions/models.DefaultFontConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.DefaultFontConfig'
       footer:
-        $ref: '#/definitions/models.FooterConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.FooterConfig'
       header:
-        $ref: '#/definitions/models.StyleConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.StyleConfig'
       pageBreak:
-        $ref: '#/definitions/models.PageBreakConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.PageBreakConfig'
       pageMargin:
-        $ref: '#/definitions/models.PageMarginConfig'
+        $ref: '#/definitions/Data2Doc_internal_models.PageMarginConfig'
       pageOrientation:
         allOf:
-        - $ref: '#/definitions/models.PageOrientationEnum'
+        - $ref: '#/definitions/Data2Doc_internal_models.PageOrientationEnum'
         example: Portrait
+      word:
+        $ref: '#/definitions/Data2Doc_internal_models.WordConfig'
     type: object
+  Data2Doc_internal_models.WordPageOrientationEnum:
+    enum:
+    - Portrait
+    - Landscape
+    type: string
+    x-enum-varnames:
+    - WordPortrait
+    - WordLandscape
 host: localhost:8080
 info:
   contact: {}
@@ -431,16 +597,12 @@ paths:
       - text/xml
       description: Generates an XLSX document. Supports JSON and XML.
       parameters:
-      - description: base filename (without extension)
-        in: query
-        name: id
-        type: string
       - description: Excel request
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.ExcelGenerateRequest'
+          $ref: '#/definitions/Data2Doc_internal_models.ExcelGenerateRequest'
       produces:
       - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
       responses:
@@ -478,16 +640,12 @@ paths:
       - text/xml
       description: Generates a PDF document. Supports JSON and XML.
       parameters:
-      - description: base filename (without extension)
-        in: query
-        name: id
-        type: string
       - description: PDF request
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.PDFGenerateRequest'
+          $ref: '#/definitions/Data2Doc_internal_models.PDFGenerateRequest'
       produces:
       - application/pdf
       responses:
@@ -525,16 +683,12 @@ paths:
       - text/xml
       description: Generates a Word (DOCX) document. Supports JSON and XML.
       parameters:
-      - description: base filename (without extension)
-        in: query
-        name: id
-        type: string
       - description: Word request
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.WordGenerateRequest'
+          $ref: '#/definitions/Data2Doc_internal_models.WordGenerateRequest'
       produces:
       - application/vnd.openxmlformats-officedocument.wordprocessingml.document
       responses:

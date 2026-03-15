@@ -6,29 +6,29 @@ import "fmt"
 // Supports JSON and XML.
 //
 // Example JSON:
-// {
-//   "format": "excel",
-//   "templateId": "default",
-//   "layout": { "showPageNum": true },
-//   "data": [ {"name":"Ana","age":30}, {"name":"Bruno"} ]
-// }
+//
+//	{
+//	  "format": "excel",
+//	  "layout": { "showPageNum": true },
+//	  "data": [ {"name":"Ana","age":30}, {"name":"Bruno"} ]
+//	}
 //
 // Example XML:
 // <DocumentRequest>
-//   <Format>pdf</Format>
-//   <TemplateId></TemplateId>
-//   <Layout>
-//     <ShowPageNum>true</ShowPageNum>
-//   </Layout>
-//   <Data>
-//     <Item><name>Ana</name><age>30</age></Item>
-//     <Item><name>Bruno</name></Item>
-//   </Data>
+//
+//	<Format>pdf</Format>
+//	<Layout>
+//	  <ShowPageNum>true</ShowPageNum>
+//	</Layout>
+//	<Data>
+//	  <Item><name>Ana</name><age>30</age></Item>
+//	  <Item><name>Bruno</name></Item>
+//	</Data>
+//
 // </DocumentRequest>
 type DocumentRequest struct {
-	Format     DocumentFormatEnum `json:"format" xml:"Format" example:"excel"`
-	TemplateID string             `json:"templateId,omitempty" xml:"TemplateId,omitempty" example:"default"`
-	Layout     *LayoutConfig      `json:"layout,omitempty" xml:"Layout,omitempty"`
+	Format DocumentFormatEnum `json:"format" xml:"Format" example:"excel"`
+	Layout *LayoutConfig      `json:"layout,omitempty" xml:"Layout,omitempty"`
 	// Data is flexible: it can be an array/object (single dataset) or an object of datasets for Excel sheets.
 	Data DataPayload `json:"data" xml:"Data" swaggertype:"object"`
 }
@@ -68,6 +68,31 @@ func (r *DocumentRequest) Validate() error {
 			}
 		}
 	}
+
+	// PDF builder mode: allow data to be empty when blocks don't need datasets.
+	if (r.Format == DocumentFormatPDF || r.Format == DocumentFormatWord) && r.Layout != nil && len(r.Layout.Blocks) > 0 {
+		needsData := false
+		for i := range r.Layout.Blocks {
+			b := r.Layout.Blocks[i]
+			switch b.Type {
+			case PDFBlockTable, PDFBlockChart:
+				needsData = true
+				ds := r.Data.Get(b.DataSource)
+				if ds.IsEmpty() {
+					name := b.DataSource
+					if name == "" {
+						name = "default"
+					}
+					return fmt.Errorf("dataSource '%s' (blocks[%d]) is empty or missing", name, i)
+				}
+			}
+		}
+		if needsData {
+			return nil
+		}
+		return nil
+	}
+
 	if r.Data.IsEmpty() {
 		return fmt.Errorf("data is required and must contain at least one item with keys")
 	}

@@ -77,18 +77,28 @@ func (p *DataPayload) UnmarshalJSON(b []byte) error {
 		if err := json.Unmarshal(bb, &raw); err != nil {
 			return err
 		}
-		// If any value is an array, treat as sources.
-		isSources := false
+		// Detect multi-dataset object.
+		// Backward-compatible rule:
+		// - A single-row dataset is commonly sent as an object of scalars: {"name":"Ana","age":30}
+		// - Multi-dataset is sent as an object whose values are arrays and/or objects:
+		//   {"employees":[...],"departments":{...}}
+		// We treat it as Sources only when *all non-null values* are arrays/objects and at least
+		// one such complex value exists.
+		complexCount := 0
+		scalarCount := 0
 		for _, v := range raw {
 			vv := bytes.TrimSpace(v)
-			if len(vv) == 0 {
+			if len(vv) == 0 || bytes.Equal(vv, []byte("null")) {
 				continue
 			}
-			if vv[0] == '[' {
-				isSources = true
-				break
+			switch vv[0] {
+			case '[', '{':
+				complexCount++
+			default:
+				scalarCount++
 			}
 		}
+		isSources := complexCount > 0 && scalarCount == 0
 		if isSources {
 			p.Sources = make(map[string]DynamicData, len(raw))
 			for k, v := range raw {
@@ -99,6 +109,9 @@ func (p *DataPayload) UnmarshalJSON(b []byte) error {
 				var d DynamicData
 				if err := json.Unmarshal(vv, &d); err != nil {
 					return fmt.Errorf("data.%s: %w", k, err)
+				}
+				if d.IsEmpty() {
+					continue
 				}
 				p.Sources[k] = d
 			}

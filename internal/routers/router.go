@@ -2,14 +2,12 @@ package routers
 
 import (
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"Data2Doc/internal/auth"
 	"Data2Doc/internal/handlers"
 	"Data2Doc/internal/service"
-	"Data2Doc/internal/templates"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -62,10 +60,7 @@ func NewRouter() *gin.Engine {
 	})
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	templatesDir := os.Getenv("TEMPLATES_DIR")
-	loader := templates.NewLoader(templatesDir)
-
-	documentService := service.NewDocumentService(loader)
+	documentService := service.NewDocumentService()
 	generateHandler := handlers.NewGenerateHandler(documentService)
 
 	protected := r.Group("/")

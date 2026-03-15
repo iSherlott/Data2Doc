@@ -90,6 +90,107 @@ func (e *PageOrientationEnum) fromString(s string) error {
 	return nil
 }
 
+// WordPageOrientationEnum is used by layout.word.pageOrientation.
+type WordPageOrientationEnum string
+
+const (
+	WordPortrait  WordPageOrientationEnum = "Portrait"
+	WordLandscape WordPageOrientationEnum = "Landscape"
+)
+
+func (e WordPageOrientationEnum) IsValid() bool {
+	switch e {
+	case WordPortrait, WordLandscape:
+		return true
+	default:
+		return false
+	}
+}
+
+func (e *WordPageOrientationEnum) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	return e.fromString(s)
+}
+
+func (e *WordPageOrientationEnum) UnmarshalText(text []byte) error {
+	return e.fromString(string(text))
+}
+
+func (e *WordPageOrientationEnum) fromString(s string) error {
+	v := strings.TrimSpace(s)
+	if v == "" {
+		*e = ""
+		return nil
+	}
+	switch strings.ToLower(v) {
+	case "portrait":
+		*e = WordPortrait
+	case "landscape":
+		*e = WordLandscape
+	default:
+		return fmt.Errorf("invalid layout.word.pageOrientation '%s' (expected: Portrait|Landscape)", s)
+	}
+	return nil
+}
+
+// ExcelCellTypeEnum is used by Excel columns to provide advanced cell behavior.
+type ExcelCellTypeEnum string
+
+const (
+	ExcelCellText     ExcelCellTypeEnum = "Text"
+	ExcelCellNumber   ExcelCellTypeEnum = "Number"
+	ExcelCellCurrency ExcelCellTypeEnum = "Currency"
+	ExcelCellDate     ExcelCellTypeEnum = "Date"
+	ExcelCellSelect   ExcelCellTypeEnum = "Select"
+)
+
+func (e ExcelCellTypeEnum) IsValid() bool {
+	switch e {
+	case ExcelCellText, ExcelCellNumber, ExcelCellCurrency, ExcelCellDate, ExcelCellSelect:
+		return true
+	default:
+		return false
+	}
+}
+
+func (e *ExcelCellTypeEnum) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	return e.fromString(s)
+}
+
+func (e *ExcelCellTypeEnum) UnmarshalText(text []byte) error {
+	return e.fromString(string(text))
+}
+
+func (e *ExcelCellTypeEnum) fromString(s string) error {
+	v := strings.TrimSpace(s)
+	if v == "" {
+		*e = ""
+		return nil
+	}
+	switch strings.ToLower(v) {
+	case "text":
+		*e = ExcelCellText
+	case "number":
+		*e = ExcelCellNumber
+	case "currency":
+		*e = ExcelCellCurrency
+	case "date":
+		*e = ExcelCellDate
+	case "select":
+		*e = ExcelCellSelect
+	default:
+		return fmt.Errorf("invalid columns.cellType '%s' (expected: Text|Number|Currency|Date|Select)", s)
+	}
+	return nil
+}
+
 type FontFamilyEnum string
 
 const (
@@ -502,4 +603,120 @@ func (e *RendererTypeEnum) UnmarshalJSON(b []byte) error {
 
 func (e *RendererTypeEnum) UnmarshalText(text []byte) error {
 	return e.UnmarshalJSON([]byte("\"" + string(text) + "\""))
+}
+
+// PDFBlockTypeEnum is used by layout.blocks to define the ordered PDF content blocks.
+type PDFBlockTypeEnum string
+
+const (
+	PDFBlockText         PDFBlockTypeEnum = "Text"
+	PDFBlockTable        PDFBlockTypeEnum = "Table"
+	PDFBlockChart        PDFBlockTypeEnum = "Chart"
+	PDFBlockImage        PDFBlockTypeEnum = "Image"
+	PDFBlockSpacer       PDFBlockTypeEnum = "Spacer"
+	PDFBlockSectionTitle PDFBlockTypeEnum = "SectionTitle"
+	PDFBlockPageBreak    PDFBlockTypeEnum = "PageBreak"
+)
+
+func (e PDFBlockTypeEnum) IsValid() bool {
+	switch e {
+	case PDFBlockText, PDFBlockTable, PDFBlockChart, PDFBlockImage, PDFBlockSpacer, PDFBlockSectionTitle, PDFBlockPageBreak:
+		return true
+	default:
+		return false
+	}
+}
+
+func (e *PDFBlockTypeEnum) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	return e.fromString(s)
+}
+
+func (e *PDFBlockTypeEnum) UnmarshalText(text []byte) error {
+	return e.fromString(string(text))
+}
+
+func (e *PDFBlockTypeEnum) fromString(s string) error {
+	v := strings.TrimSpace(s)
+	if v == "" {
+		*e = ""
+		return nil
+	}
+	switch strings.ToLower(v) {
+	case "text":
+		*e = PDFBlockText
+	case "table":
+		*e = PDFBlockTable
+	case "chart":
+		*e = PDFBlockChart
+	case "image":
+		*e = PDFBlockImage
+	case "spacer":
+		*e = PDFBlockSpacer
+	case "sectiontitle", "section_title", "section-title":
+		*e = PDFBlockSectionTitle
+	case "pagebreak", "page_break", "page-break":
+		*e = PDFBlockPageBreak
+	default:
+		return fmt.Errorf("invalid block type '%s' (expected: Text|Table|Chart|Image|Spacer|SectionTitle|PageBreak)", s)
+	}
+	return nil
+}
+
+// ChartTypeEnum controls the chart type for a Chart block.
+type ChartTypeEnum string
+
+const (
+	ChartBar    ChartTypeEnum = "Bar"
+	ChartLine   ChartTypeEnum = "Line"
+	ChartPie    ChartTypeEnum = "Pie"
+	ChartArea   ChartTypeEnum = "Area"
+	ChartColumn ChartTypeEnum = "Column"
+)
+
+func (e ChartTypeEnum) IsValid() bool {
+	switch e {
+	case ChartBar, ChartLine, ChartPie, ChartArea, ChartColumn:
+		return true
+	default:
+		return false
+	}
+}
+
+func (e *ChartTypeEnum) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	return e.fromString(s)
+}
+
+func (e *ChartTypeEnum) UnmarshalText(text []byte) error {
+	return e.fromString(string(text))
+}
+
+func (e *ChartTypeEnum) fromString(s string) error {
+	v := strings.TrimSpace(s)
+	if v == "" {
+		*e = ""
+		return nil
+	}
+	switch strings.ToLower(v) {
+	case "bar":
+		*e = ChartBar
+	case "line":
+		*e = ChartLine
+	case "pie":
+		*e = ChartPie
+	case "area":
+		*e = ChartArea
+	case "column":
+		*e = ChartColumn
+	default:
+		return fmt.Errorf("invalid chartType '%s' (expected: Bar|Line|Pie|Area|Column)", s)
+	}
+	return nil
 }
