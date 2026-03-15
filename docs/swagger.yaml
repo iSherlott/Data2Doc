@@ -1,43 +1,494 @@
 basePath: /
+definitions:
+  models.AlignmentEnum:
+    enum:
+    - left
+    - center
+    - right
+    - justify
+    type: string
+    x-enum-varnames:
+    - AlignLeft
+    - AlignCenter
+    - AlignRight
+    - AlignJustify
+  models.ColumnAlignmentEnum:
+    enum:
+    - left
+    - center
+    - right
+    type: string
+    x-enum-varnames:
+    - ColAlignLeft
+    - ColAlignCenter
+    - ColAlignRight
+  models.ColumnFormatEnum:
+    enum:
+    - currency
+    - date
+    - datetime
+    - percentage
+    - number
+    type: string
+    x-enum-varnames:
+    - ColFormatCurrency
+    - ColFormatDate
+    - ColFormatDateTime
+    - ColFormatPercentage
+    - ColFormatNumber
+  models.DefaultFontConfig:
+    properties:
+      fontColor:
+        example: '#000000'
+        type: string
+      fontFamily:
+        allOf:
+        - $ref: '#/definitions/models.FontFamilyEnum'
+        example: Calibri
+      fontSize:
+        example: 11
+        type: integer
+    type: object
+  models.ExcelColumnConfig:
+    properties:
+      alignment:
+        allOf:
+        - $ref: '#/definitions/models.ColumnAlignmentEnum'
+        example: left
+      field:
+        example: name
+        type: string
+      format:
+        allOf:
+        - $ref: '#/definitions/models.ColumnFormatEnum'
+        example: currency
+      title:
+        example: Name
+        type: string
+      verticalAlignment:
+        allOf:
+        - $ref: '#/definitions/models.VerticalAlignmentEnum'
+        example: Middle
+      width:
+        description: characters
+        example: 20
+        type: number
+    type: object
+  models.ExcelGenerateRequest:
+    properties:
+      data:
+        type: object
+      layout:
+        $ref: '#/definitions/models.ExcelLayoutConfig'
+      templateId:
+        example: default
+        type: string
+    type: object
+  models.ExcelLayoutConfig:
+    properties:
+      autoSizeColumns:
+        type: boolean
+      body:
+        $ref: '#/definitions/models.StyleConfig'
+      columns:
+        items:
+          $ref: '#/definitions/models.ExcelColumnConfig'
+        type: array
+      defaultFont:
+        $ref: '#/definitions/models.DefaultFontConfig'
+      freezeHeader:
+        type: boolean
+      header:
+        $ref: '#/definitions/models.StyleConfig'
+      pageMargin:
+        $ref: '#/definitions/models.PageMarginConfig'
+      pageOrientation:
+        allOf:
+        - $ref: '#/definitions/models.PageOrientationEnum'
+        example: Portrait
+      sheets:
+        items:
+          $ref: '#/definitions/models.SheetConfig'
+        type: array
+    type: object
+  models.FontFamilyEnum:
+    enum:
+    - Calibri
+    - Arial
+    - TimesNewRoman
+    - Helvetica
+    type: string
+    x-enum-varnames:
+    - FontCalibri
+    - FontArial
+    - FontTimesNewRoman
+    - FontHelvetica
+  models.FooterConfig:
+    properties:
+      alignment:
+        allOf:
+        - $ref: '#/definitions/models.AlignmentEnum'
+        example: left
+      background:
+        example: '#FFFFFF'
+        type: string
+      bold:
+        type: boolean
+      border:
+        type: boolean
+      fontColor:
+        example: '#000000'
+        type: string
+      fontFamily:
+        allOf:
+        - $ref: '#/definitions/models.FontFamilyEnum'
+        example: Calibri
+      fontSize:
+        example: 11
+        type: integer
+      italic:
+        type: boolean
+      pageNumber:
+        $ref: '#/definitions/models.PageNumberConfig'
+      show:
+        type: boolean
+      underline:
+        type: boolean
+      verticalAlignment:
+        allOf:
+        - $ref: '#/definitions/models.VerticalAlignmentEnum'
+        example: Middle
+      zebraColorEven:
+        example: '#FFFFFF'
+        type: string
+      zebraColorOdd:
+        example: '#F3F3F3'
+        type: string
+      zebraStripe:
+        type: boolean
+    type: object
+  models.HeaderImageConfig:
+    properties:
+      data:
+        description: base64 or data-uri
+        type: string
+      fillHeaderWidth:
+        type: boolean
+      fitMode:
+        allOf:
+        - $ref: '#/definitions/models.ImageFitModeEnum'
+        example: Contain
+      height:
+        description: mm
+        example: 24
+        type: number
+      horizontalAlignment:
+        allOf:
+        - $ref: '#/definitions/models.ColumnAlignmentEnum'
+        example: center
+      keepAspectRatio:
+        type: boolean
+      position:
+        allOf:
+        - $ref: '#/definitions/models.ImagePositionEnum'
+        example: top-center
+      stretch:
+        type: boolean
+    type: object
+  models.ImageFitModeEnum:
+    enum:
+    - Contain
+    - Cover
+    - Stretch
+    - Center
+    type: string
+    x-enum-varnames:
+    - ImageFitContain
+    - ImageFitCover
+    - ImageFitStretch
+    - ImageFitCenter
+  models.ImagePositionEnum:
+    enum:
+    - top-left
+    - top-center
+    - top-right
+    type: string
+    x-enum-varnames:
+    - ImageTopLeft
+    - ImageTopCenter
+    - ImageTopRight
+  models.PDFGenerateRequest:
+    properties:
+      data:
+        type: object
+      layout:
+        $ref: '#/definitions/models.PDFLayoutConfig'
+      templateId:
+        example: default
+        type: string
+    type: object
+  models.PDFLayoutConfig:
+    properties:
+      body:
+        $ref: '#/definitions/models.StyleConfig'
+      columns:
+        items:
+          $ref: '#/definitions/models.TableColumnConfig'
+        type: array
+      defaultFont:
+        $ref: '#/definitions/models.DefaultFontConfig'
+      footer:
+        $ref: '#/definitions/models.FooterConfig'
+      header:
+        $ref: '#/definitions/models.StyleConfig'
+      headerImage:
+        $ref: '#/definitions/models.HeaderImageConfig'
+      pageMargin:
+        $ref: '#/definitions/models.PageMarginConfig'
+      pageOrientation:
+        allOf:
+        - $ref: '#/definitions/models.PageOrientationEnum'
+        example: Portrait
+      usePageContentBounds:
+        type: boolean
+    type: object
+  models.PageBreakConfig:
+    properties:
+      enabled:
+        type: boolean
+      rowsPerPage:
+        example: 30
+        type: integer
+    type: object
+  models.PageMarginConfig:
+    properties:
+      bottom:
+        example: 20
+        type: number
+      left:
+        example: 15
+        type: number
+      right:
+        example: 15
+        type: number
+      top:
+        example: 20
+        type: number
+    type: object
+  models.PageNumberConfig:
+    properties:
+      enabled:
+        type: boolean
+      format:
+        allOf:
+        - $ref: '#/definitions/models.PageNumberFormatEnum'
+        example: Arabic
+    type: object
+  models.PageNumberFormatEnum:
+    enum:
+    - Arabic
+    - Roman
+    - RomanUpper
+    - TextPageNumber
+    type: string
+    x-enum-varnames:
+    - PageNumArabic
+    - PageNumRoman
+    - PageNumRomanUpper
+    - PageNumTextPageNum
+  models.PageOrientationEnum:
+    enum:
+    - Portrait
+    - Landscape
+    type: string
+    x-enum-varnames:
+    - PagePortrait
+    - PageLandscape
+  models.SheetConfig:
+    properties:
+      dataSource:
+        example: employees
+        type: string
+      name:
+        example: Funcionarios
+        type: string
+    type: object
+  models.StyleConfig:
+    properties:
+      alignment:
+        allOf:
+        - $ref: '#/definitions/models.AlignmentEnum'
+        example: left
+      background:
+        example: '#FFFFFF'
+        type: string
+      bold:
+        type: boolean
+      border:
+        type: boolean
+      fontColor:
+        example: '#000000'
+        type: string
+      fontFamily:
+        allOf:
+        - $ref: '#/definitions/models.FontFamilyEnum'
+        example: Calibri
+      fontSize:
+        example: 11
+        type: integer
+      italic:
+        type: boolean
+      underline:
+        type: boolean
+      verticalAlignment:
+        allOf:
+        - $ref: '#/definitions/models.VerticalAlignmentEnum'
+        example: Middle
+      zebraColorEven:
+        example: '#FFFFFF'
+        type: string
+      zebraColorOdd:
+        example: '#F3F3F3'
+        type: string
+      zebraStripe:
+        type: boolean
+    type: object
+  models.TableColumnConfig:
+    properties:
+      alignment:
+        allOf:
+        - $ref: '#/definitions/models.ColumnAlignmentEnum'
+        example: left
+      field:
+        example: name
+        type: string
+      title:
+        example: Name
+        type: string
+      verticalAlignment:
+        allOf:
+        - $ref: '#/definitions/models.VerticalAlignmentEnum'
+        example: Middle
+      width:
+        description: relative
+        example: 20
+        type: number
+    type: object
+  models.VerticalAlignmentEnum:
+    enum:
+    - Top
+    - Middle
+    - Bottom
+    type: string
+    x-enum-varnames:
+    - VAlignTop
+    - VAlignMiddle
+    - VAlignBottom
+  models.WordGenerateRequest:
+    properties:
+      data:
+        type: object
+      layout:
+        $ref: '#/definitions/models.WordLayoutConfig'
+      templateId:
+        example: default
+        type: string
+    type: object
+  models.WordLayoutConfig:
+    properties:
+      body:
+        $ref: '#/definitions/models.StyleConfig'
+      columns:
+        items:
+          $ref: '#/definitions/models.TableColumnConfig'
+        type: array
+      defaultFont:
+        $ref: '#/definitions/models.DefaultFontConfig'
+      footer:
+        $ref: '#/definitions/models.FooterConfig'
+      header:
+        $ref: '#/definitions/models.StyleConfig'
+      pageBreak:
+        $ref: '#/definitions/models.PageBreakConfig'
+      pageMargin:
+        $ref: '#/definitions/models.PageMarginConfig'
+      pageOrientation:
+        allOf:
+        - $ref: '#/definitions/models.PageOrientationEnum'
+        example: Portrait
+    type: object
 host: localhost:8080
 info:
   contact: {}
-  description: Data binding to documents (excel/word/pdf).
+  description: Data binding to documents (excel/word/pdf/csv) with JSON or XML input.
   title: Data2Doc API
   version: "1.0"
 paths:
-  /generate/{type}:
+  /generate/excel:
     post:
       consumes:
       - application/json
-      description: Generates a document in excel, word or pdf.
+      - text/xml
+      description: Generates an XLSX document. Supports JSON and XML.
       parameters:
-      - description: excel|word|pdf
-        in: path
-        name: type
-        required: true
-        type: string
-      - description: template filename placed under templates/<type>/
-        in: query
-        name: template
-        type: string
       - description: base filename (without extension)
         in: query
         name: id
         type: string
-      - description: 'JSON payload (array of objects). No exemplo do Swagger ele pode
-          vir como [{}]; substitua por dados reais, ex: [{\'
+      - description: Excel request
         in: body
-        name: payload
+        name: request
         required: true
         schema:
-          items:
-            additionalProperties: true
-            type: object
-          type: array
+          $ref: '#/definitions/models.ExcelGenerateRequest'
       produces:
       - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Generate an Excel document
+      tags:
+      - documents
+  /generate/pdf:
+    post:
+      consumes:
+      - application/json
+      - text/xml
+      description: Generates a PDF document. Supports JSON and XML.
+      parameters:
+      - description: base filename (without extension)
+        in: query
+        name: id
+        type: string
+      - description: PDF request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.PDFGenerateRequest'
+      produces:
       - application/pdf
       responses:
         "200":
@@ -64,7 +515,54 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Generate a document
+      summary: Generate a PDF document
+      tags:
+      - documents
+  /generate/word:
+    post:
+      consumes:
+      - application/json
+      - text/xml
+      description: Generates a Word (DOCX) document. Supports JSON and XML.
+      parameters:
+      - description: base filename (without extension)
+        in: query
+        name: id
+        type: string
+      - description: Word request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.WordGenerateRequest'
+      produces:
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Generate a Word (DOCX) document
       tags:
       - documents
 securityDefinitions:

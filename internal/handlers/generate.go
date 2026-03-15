@@ -1,11 +1,8 @@
 package handlers
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 	"strings"
 
 	"Data2Doc/internal/models"
@@ -22,33 +19,7 @@ func NewGenerateHandler(documentService *service.DocumentService) *GenerateHandl
 	return &GenerateHandler{documentService: documentService}
 }
 
-// GenerateDocument godoc
-// @Summary      Generate a document
-// @Description  Generates a document in excel, word or pdf.
-// @Tags         documents
-// @Security     BearerAuth
-// @Accept       json
-// @Produce      application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-// @Produce      application/vnd.openxmlformats-officedocument.wordprocessingml.document
-// @Produce      application/pdf
-// @Param        type      path     string          true   "excel|word|pdf"
-// @Param        template  query    string          false  "template filename placed under templates/<type>/"
-// @Param        id        query    string          false  "base filename (without extension)"
-// @Param        payload   body     []map[string]interface{}  true   "JSON payload (array of objects)."
-// @Success      200       {file}   file
-// @Failure      400       {object} map[string]string
-// @Failure      401       {object} map[string]string
-// @Failure      404       {object} map[string]string
-// @Router       /generate/{type} [post]
-func (h *GenerateHandler) Generate(c *gin.Context) {
-	docTypeStr := strings.ToLower(strings.TrimSpace(c.Param("type")))
-	docType := models.DocumentType(docTypeStr)
-	if !docType.IsValid() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid type; expected excel|word|pdf"})
-		return
-	}
-
-	templateName := strings.TrimSpace(c.Query("template"))
+func baseNameFromRequest(c *gin.Context) string {
 	baseName := strings.TrimSpace(c.Query("id"))
 	if baseName == "" {
 		baseName = strings.TrimSpace(c.GetHeader("X-Request-Id"))
@@ -56,42 +27,146 @@ func (h *GenerateHandler) Generate(c *gin.Context) {
 	if baseName == "" {
 		baseName = "document"
 	}
+	return baseName
+}
 
-	body, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read body"})
+// GenerateExcel godoc
+// @Summary      Generate an Excel document
+// @Description  Generates an XLSX document. Supports JSON and XML.
+// @Tags         documents
+// @Security     BearerAuth
+// @Accept       json
+// @Accept       xml
+// @Produce      application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// @Param        id       query    string                    false  "base filename (without extension)"
+// @Param        request  body     models.ExcelGenerateRequest true   "Excel request"
+// @Success      200      {file}   file
+// @Failure      400      {object} map[string]string
+// @Failure      401      {object} map[string]string
+// @Failure      404      {object} map[string]string
+// @Router       /generate/excel [post]
+func (h *GenerateHandler) GenerateExcel(c *gin.Context) {
+	var req models.ExcelGenerateRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if strings.TrimSpace(string(body)) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "payload is empty"})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	filename, contentType, b, err := h.documentService.GenerateFromPayload(docType, baseName, templateName, body)
+	docReq := req.ToDocumentRequest()
+	if err := docReq.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	gen, err := h.documentService.GenerateV2(docReq)
 	if err != nil {
 		status := http.StatusBadRequest
 		if service.IsTemplateNotFound(err) {
 			status = http.StatusNotFound
 		}
-
-		resp := gin.H{"error": err.Error()}
-		// Extra help for the most common Swagger mistake: sending [{}] or {}.
-		if errors.Is(err, service.ErrEmptyPayload) {
-			resp["hint"] = "Swagger often defaults to [{}]. Replace it with real data, e.g. [{\"name\":\"pedro\",\"age\":20}]"
-		}
-		if os.Getenv("ENV") == "Development" {
-			resp["debug.contentType"] = c.GetHeader("Content-Type")
-			trim := strings.TrimSpace(string(body))
-			if len(trim) > 200 {
-				trim = trim[:200] + "..."
-			}
-			resp["debug.bodyPreview"] = trim
-		}
-
-		c.JSON(status, resp)
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 
+	filename := baseNameFromRequest(c) + ".xlsx"
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
-	c.Data(http.StatusOK, contentType, b)
+	c.Data(http.StatusOK, gen.ContentType, gen.Bytes)
+}
+
+// GeneratePDF godoc
+// @Summary      Generate a PDF document
+// @Description  Generates a PDF document. Supports JSON and XML.
+// @Tags         documents
+// @Security     BearerAuth
+// @Accept       json
+// @Accept       xml
+// @Produce      application/pdf
+// @Param        id       query    string                  false  "base filename (without extension)"
+// @Param        request  body     models.PDFGenerateRequest true   "PDF request"
+// @Success      200      {file}   file
+// @Failure      400      {object} map[string]string
+// @Failure      401      {object} map[string]string
+// @Failure      404      {object} map[string]string
+// @Router       /generate/pdf [post]
+func (h *GenerateHandler) GeneratePDF(c *gin.Context) {
+	var req models.PDFGenerateRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	docReq := req.ToDocumentRequest()
+	if err := docReq.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	gen, err := h.documentService.GenerateV2(docReq)
+	if err != nil {
+		status := http.StatusBadRequest
+		if service.IsTemplateNotFound(err) {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	filename := baseNameFromRequest(c) + ".pdf"
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, gen.ContentType, gen.Bytes)
+}
+
+// GenerateWord godoc
+// @Summary      Generate a Word (DOCX) document
+// @Description  Generates a Word (DOCX) document. Supports JSON and XML.
+// @Tags         documents
+// @Security     BearerAuth
+// @Accept       json
+// @Accept       xml
+// @Produce      application/vnd.openxmlformats-officedocument.wordprocessingml.document
+// @Param        id       query    string                   false  "base filename (without extension)"
+// @Param        request  body     models.WordGenerateRequest true   "Word request"
+// @Success      200      {file}   file
+// @Failure      400      {object} map[string]string
+// @Failure      401      {object} map[string]string
+// @Failure      404      {object} map[string]string
+// @Router       /generate/word [post]
+func (h *GenerateHandler) GenerateWord(c *gin.Context) {
+	var req models.WordGenerateRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	docReq := req.ToDocumentRequest()
+	if err := docReq.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	gen, err := h.documentService.GenerateV2(docReq)
+	if err != nil {
+		status := http.StatusBadRequest
+		if service.IsTemplateNotFound(err) {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	filename := baseNameFromRequest(c) + ".docx"
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, gen.ContentType, gen.Bytes)
 }

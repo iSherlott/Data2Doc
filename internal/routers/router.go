@@ -70,7 +70,9 @@ func NewRouter() *gin.Engine {
 
 	protected := r.Group("/")
 	protected.Use(auth.AuthIdentityMiddleware())
-	protected.POST("/generate/:type", generateHandler.Generate)
+	RegisterExcelRoutes(protected, generateHandler)
+	RegisterPDFRoutes(protected, generateHandler)
+	RegisterWordRoutes(protected, generateHandler)
 
 	return r
 }

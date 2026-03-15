@@ -9,7 +9,7 @@ import (
 
 // @title       Data2Doc API
 // @version     1.0
-// @description Data binding to documents (excel/word/pdf).
+// @description Data binding to documents (excel/word/pdf/csv) with JSON or XML input.
 // @host        localhost:8080
 // @BasePath    /
 // @securityDefinitions.apikey  BearerAuth

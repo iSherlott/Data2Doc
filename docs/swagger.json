@@ -1,7 +1,7 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "Data binding to documents (excel/word/pdf).",
+        "description": "Data binding to documents (excel/word/pdf/csv) with JSON or XML input.",
         "title": "Data2Doc API",
         "contact": {},
         "version": "1.0"
@@ -9,40 +9,26 @@
     "host": "localhost:8080",
     "basePath": "/",
     "paths": {
-        "/generate/{type}": {
+        "/generate/excel": {
             "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Generates a document in excel, word or pdf.",
+                "description": "Generates an XLSX document. Supports JSON and XML.",
                 "consumes": [
-                    "application/json"
+                    "application/json",
+                    "text/xml"
                 ],
                 "produces": [
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    "application/pdf"
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 ],
                 "tags": [
                     "documents"
                 ],
-                "summary": "Generate a document",
+                "summary": "Generate an Excel document",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "excel|word|pdf",
-                        "name": "type",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "template filename placed under templates/\u003ctype\u003e/",
-                        "name": "template",
-                        "in": "query"
-                    },
                     {
                         "type": "string",
                         "description": "base filename (without extension)",
@@ -50,16 +36,12 @@
                         "in": "query"
                     },
                     {
-                        "description": "JSON payload (array of objects). No exemplo do Swagger ele pode vir como [{}]; substitua por dados reais, ex: [{\\",
-                        "name": "payload",
+                        "description": "Excel request",
+                        "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "additionalProperties": true
-                            }
+                            "$ref": "#/definitions/models.ExcelGenerateRequest"
                         }
                     }
                 ],
@@ -97,6 +79,786 @@
                             }
                         }
                     }
+                }
+            }
+        },
+        "/generate/pdf": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generates a PDF document. Supports JSON and XML.",
+                "consumes": [
+                    "application/json",
+                    "text/xml"
+                ],
+                "produces": [
+                    "application/pdf"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "Generate a PDF document",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "base filename (without extension)",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "description": "PDF request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.PDFGenerateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/generate/word": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generates a Word (DOCX) document. Supports JSON and XML.",
+                "consumes": [
+                    "application/json",
+                    "text/xml"
+                ],
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "Generate a Word (DOCX) document",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "base filename (without extension)",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "description": "Word request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.WordGenerateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "models.AlignmentEnum": {
+            "type": "string",
+            "enum": [
+                "left",
+                "center",
+                "right",
+                "justify"
+            ],
+            "x-enum-varnames": [
+                "AlignLeft",
+                "AlignCenter",
+                "AlignRight",
+                "AlignJustify"
+            ]
+        },
+        "models.ColumnAlignmentEnum": {
+            "type": "string",
+            "enum": [
+                "left",
+                "center",
+                "right"
+            ],
+            "x-enum-varnames": [
+                "ColAlignLeft",
+                "ColAlignCenter",
+                "ColAlignRight"
+            ]
+        },
+        "models.ColumnFormatEnum": {
+            "type": "string",
+            "enum": [
+                "currency",
+                "date",
+                "datetime",
+                "percentage",
+                "number"
+            ],
+            "x-enum-varnames": [
+                "ColFormatCurrency",
+                "ColFormatDate",
+                "ColFormatDateTime",
+                "ColFormatPercentage",
+                "ColFormatNumber"
+            ]
+        },
+        "models.DefaultFontConfig": {
+            "type": "object",
+            "properties": {
+                "fontColor": {
+                    "type": "string",
+                    "example": "#000000"
+                },
+                "fontFamily": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.FontFamilyEnum"
+                        }
+                    ],
+                    "example": "Calibri"
+                },
+                "fontSize": {
+                    "type": "integer",
+                    "example": 11
+                }
+            }
+        },
+        "models.ExcelColumnConfig": {
+            "type": "object",
+            "properties": {
+                "alignment": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.ColumnAlignmentEnum"
+                        }
+                    ],
+                    "example": "left"
+                },
+                "field": {
+                    "type": "string",
+                    "example": "name"
+                },
+                "format": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.ColumnFormatEnum"
+                        }
+                    ],
+                    "example": "currency"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Name"
+                },
+                "verticalAlignment": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.VerticalAlignmentEnum"
+                        }
+                    ],
+                    "example": "Middle"
+                },
+                "width": {
+                    "description": "characters",
+                    "type": "number",
+                    "example": 20
+                }
+            }
+        },
+        "models.ExcelGenerateRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object"
+                },
+                "layout": {
+                    "$ref": "#/definitions/models.ExcelLayoutConfig"
+                },
+                "templateId": {
+                    "type": "string",
+                    "example": "default"
+                }
+            }
+        },
+        "models.ExcelLayoutConfig": {
+            "type": "object",
+            "properties": {
+                "autoSizeColumns": {
+                    "type": "boolean"
+                },
+                "body": {
+                    "$ref": "#/definitions/models.StyleConfig"
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ExcelColumnConfig"
+                    }
+                },
+                "defaultFont": {
+                    "$ref": "#/definitions/models.DefaultFontConfig"
+                },
+                "freezeHeader": {
+                    "type": "boolean"
+                },
+                "header": {
+                    "$ref": "#/definitions/models.StyleConfig"
+                },
+                "pageMargin": {
+                    "$ref": "#/definitions/models.PageMarginConfig"
+                },
+                "pageOrientation": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.PageOrientationEnum"
+                        }
+                    ],
+                    "example": "Portrait"
+                },
+                "sheets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SheetConfig"
+                    }
+                }
+            }
+        },
+        "models.FontFamilyEnum": {
+            "type": "string",
+            "enum": [
+                "Calibri",
+                "Arial",
+                "TimesNewRoman",
+                "Helvetica"
+            ],
+            "x-enum-varnames": [
+                "FontCalibri",
+                "FontArial",
+                "FontTimesNewRoman",
+                "FontHelvetica"
+            ]
+        },
+        "models.FooterConfig": {
+            "type": "object",
+            "properties": {
+                "alignment": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.AlignmentEnum"
+                        }
+                    ],
+                    "example": "left"
+                },
+                "background": {
+                    "type": "string",
+                    "example": "#FFFFFF"
+                },
+                "bold": {
+                    "type": "boolean"
+                },
+                "border": {
+                    "type": "boolean"
+                },
+                "fontColor": {
+                    "type": "string",
+                    "example": "#000000"
+                },
+                "fontFamily": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.FontFamilyEnum"
+                        }
+                    ],
+                    "example": "Calibri"
+                },
+                "fontSize": {
+                    "type": "integer",
+                    "example": 11
+                },
+                "italic": {
+                    "type": "boolean"
+                },
+                "pageNumber": {
+                    "$ref": "#/definitions/models.PageNumberConfig"
+                },
+                "show": {
+                    "type": "boolean"
+                },
+                "underline": {
+                    "type": "boolean"
+                },
+                "verticalAlignment": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.VerticalAlignmentEnum"
+                        }
+                    ],
+                    "example": "Middle"
+                },
+                "zebraColorEven": {
+                    "type": "string",
+                    "example": "#FFFFFF"
+                },
+                "zebraColorOdd": {
+                    "type": "string",
+                    "example": "#F3F3F3"
+                },
+                "zebraStripe": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.HeaderImageConfig": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "base64 or data-uri",
+                    "type": "string"
+                },
+                "fillHeaderWidth": {
+                    "type": "boolean"
+                },
+                "fitMode": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.ImageFitModeEnum"
+                        }
+                    ],
+                    "example": "Contain"
+                },
+                "height": {
+                    "description": "mm",
+                    "type": "number",
+                    "example": 24
+                },
+                "horizontalAlignment": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.ColumnAlignmentEnum"
+                        }
+                    ],
+                    "example": "center"
+                },
+                "keepAspectRatio": {
+                    "type": "boolean"
+                },
+                "position": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.ImagePositionEnum"
+                        }
+                    ],
+                    "example": "top-center"
+                },
+                "stretch": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.ImageFitModeEnum": {
+            "type": "string",
+            "enum": [
+                "Contain",
+                "Cover",
+                "Stretch",
+                "Center"
+            ],
+            "x-enum-varnames": [
+                "ImageFitContain",
+                "ImageFitCover",
+                "ImageFitStretch",
+                "ImageFitCenter"
+            ]
+        },
+        "models.ImagePositionEnum": {
+            "type": "string",
+            "enum": [
+                "top-left",
+                "top-center",
+                "top-right"
+            ],
+            "x-enum-varnames": [
+                "ImageTopLeft",
+                "ImageTopCenter",
+                "ImageTopRight"
+            ]
+        },
+        "models.PDFGenerateRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object"
+                },
+                "layout": {
+                    "$ref": "#/definitions/models.PDFLayoutConfig"
+                },
+                "templateId": {
+                    "type": "string",
+                    "example": "default"
+                }
+            }
+        },
+        "models.PDFLayoutConfig": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "$ref": "#/definitions/models.StyleConfig"
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TableColumnConfig"
+                    }
+                },
+                "defaultFont": {
+                    "$ref": "#/definitions/models.DefaultFontConfig"
+                },
+                "footer": {
+                    "$ref": "#/definitions/models.FooterConfig"
+                },
+                "header": {
+                    "$ref": "#/definitions/models.StyleConfig"
+                },
+                "headerImage": {
+                    "$ref": "#/definitions/models.HeaderImageConfig"
+                },
+                "pageMargin": {
+                    "$ref": "#/definitions/models.PageMarginConfig"
+                },
+                "pageOrientation": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.PageOrientationEnum"
+                        }
+                    ],
+                    "example": "Portrait"
+                },
+                "usePageContentBounds": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.PageBreakConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "rowsPerPage": {
+                    "type": "integer",
+                    "example": 30
+                }
+            }
+        },
+        "models.PageMarginConfig": {
+            "type": "object",
+            "properties": {
+                "bottom": {
+                    "type": "number",
+                    "example": 20
+                },
+                "left": {
+                    "type": "number",
+                    "example": 15
+                },
+                "right": {
+                    "type": "number",
+                    "example": 15
+                },
+                "top": {
+                    "type": "number",
+                    "example": 20
+                }
+            }
+        },
+        "models.PageNumberConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "format": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.PageNumberFormatEnum"
+                        }
+                    ],
+                    "example": "Arabic"
+                }
+            }
+        },
+        "models.PageNumberFormatEnum": {
+            "type": "string",
+            "enum": [
+                "Arabic",
+                "Roman",
+                "RomanUpper",
+                "TextPageNumber"
+            ],
+            "x-enum-varnames": [
+                "PageNumArabic",
+                "PageNumRoman",
+                "PageNumRomanUpper",
+                "PageNumTextPageNum"
+            ]
+        },
+        "models.PageOrientationEnum": {
+            "type": "string",
+            "enum": [
+                "Portrait",
+                "Landscape"
+            ],
+            "x-enum-varnames": [
+                "PagePortrait",
+                "PageLandscape"
+            ]
+        },
+        "models.SheetConfig": {
+            "type": "object",
+            "properties": {
+                "dataSource": {
+                    "type": "string",
+                    "example": "employees"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Funcionarios"
+                }
+            }
+        },
+        "models.StyleConfig": {
+            "type": "object",
+            "properties": {
+                "alignment": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.AlignmentEnum"
+                        }
+                    ],
+                    "example": "left"
+                },
+                "background": {
+                    "type": "string",
+                    "example": "#FFFFFF"
+                },
+                "bold": {
+                    "type": "boolean"
+                },
+                "border": {
+                    "type": "boolean"
+                },
+                "fontColor": {
+                    "type": "string",
+                    "example": "#000000"
+                },
+                "fontFamily": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.FontFamilyEnum"
+                        }
+                    ],
+                    "example": "Calibri"
+                },
+                "fontSize": {
+                    "type": "integer",
+                    "example": 11
+                },
+                "italic": {
+                    "type": "boolean"
+                },
+                "underline": {
+                    "type": "boolean"
+                },
+                "verticalAlignment": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.VerticalAlignmentEnum"
+                        }
+                    ],
+                    "example": "Middle"
+                },
+                "zebraColorEven": {
+                    "type": "string",
+                    "example": "#FFFFFF"
+                },
+                "zebraColorOdd": {
+                    "type": "string",
+                    "example": "#F3F3F3"
+                },
+                "zebraStripe": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.TableColumnConfig": {
+            "type": "object",
+            "properties": {
+                "alignment": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.ColumnAlignmentEnum"
+                        }
+                    ],
+                    "example": "left"
+                },
+                "field": {
+                    "type": "string",
+                    "example": "name"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Name"
+                },
+                "verticalAlignment": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.VerticalAlignmentEnum"
+                        }
+                    ],
+                    "example": "Middle"
+                },
+                "width": {
+                    "description": "relative",
+                    "type": "number",
+                    "example": 20
+                }
+            }
+        },
+        "models.VerticalAlignmentEnum": {
+            "type": "string",
+            "enum": [
+                "Top",
+                "Middle",
+                "Bottom"
+            ],
+            "x-enum-varnames": [
+                "VAlignTop",
+                "VAlignMiddle",
+                "VAlignBottom"
+            ]
+        },
+        "models.WordGenerateRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object"
+                },
+                "layout": {
+                    "$ref": "#/definitions/models.WordLayoutConfig"
+                },
+                "templateId": {
+                    "type": "string",
+                    "example": "default"
+                }
+            }
+        },
+        "models.WordLayoutConfig": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "$ref": "#/definitions/models.StyleConfig"
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TableColumnConfig"
+                    }
+                },
+                "defaultFont": {
+                    "$ref": "#/definitions/models.DefaultFontConfig"
+                },
+                "footer": {
+                    "$ref": "#/definitions/models.FooterConfig"
+                },
+                "header": {
+                    "$ref": "#/definitions/models.StyleConfig"
+                },
+                "pageBreak": {
+                    "$ref": "#/definitions/models.PageBreakConfig"
+                },
+                "pageMargin": {
+                    "$ref": "#/definitions/models.PageMarginConfig"
+                },
+                "pageOrientation": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.PageOrientationEnum"
+                        }
+                    ],
+                    "example": "Portrait"
                 }
             }
         }
