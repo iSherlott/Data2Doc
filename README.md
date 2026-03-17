@@ -24,15 +24,28 @@ Pré-requisitos:
 
 - Go instalado
 - Um `APP_MODE` definido (o app não inicia sem isso)
-- `AUTH_JWKS_URL` definido (as rotas são protegidas por Bearer token)
+- Autenticação configurada via `.env` (JWKS ou JWT local)
 
-Exemplo de `.env`:
+Exemplo de `.env` (modo JWKS):
 
 ```bash
 APP_MODE=dev
 AUTH_JWKS_URL=https://example.com/.well-known/jwks.json
 # opcional
 AUTH_EXPECTED_CLIENT_ID=my-client-id
+
+# opcional
+PORT=8080
+```
+
+Exemplo de `.env` (modo JWT local, sem JWKS):
+
+```bash
+APP_MODE=dev
+PORT=8080
+SECRETKEY=change-me
+AUTH_USER=admin
+AUTH_PASS=admin
 ```
 
 Rodar:
@@ -44,12 +57,17 @@ go run ./cmd
 Swagger:
 
 - `GET /swagger` (redireciona para `/swagger/index.html`)
+	- Se `ENV=Production`, o Swagger fica desabilitado (não registra as rotas `/swagger*`).
 
 ## Autenticação e headers
 
 Todas as rotas de geração exigem:
 
 - `Authorization: Bearer <token>`
+
+Se você estiver no modo JWT local (sem `AUTH_JWKS_URL`), você pode obter um token em:
+
+- `POST /auth/token` com body JSON `{ "user": "...", "pass": "..." }`
 
 Headers úteis:
 

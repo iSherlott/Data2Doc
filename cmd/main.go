@@ -15,7 +15,7 @@ import (
 // @securityDefinitions.apikey  BearerAuth
 // @in                          header
 // @name                        Authorization
-// @description                 Type "Bearer {token}"
+// @description                 Type "{token}" (prefix "Bearer" is optional)
 
 func main() {
 	config.LoadEnv()

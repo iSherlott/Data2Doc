@@ -18,13 +18,17 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header format must be Bearer {token}"})
+		tokenString := strings.TrimSpace(authHeader)
+		// Accept either "Bearer <token>" or raw token.
+		if parts := strings.SplitN(tokenString, " ", 2); len(parts) == 2 {
+			if strings.EqualFold(strings.TrimSpace(parts[0]), "bearer") {
+				tokenString = strings.TrimSpace(parts[1])
+			}
+		}
+		if tokenString == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization token missing"})
 			return
 		}
-
-		tokenString := parts[1]
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {

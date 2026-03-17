@@ -53,13 +53,17 @@ func AuthIdentityMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header"})
+		tokenString := strings.TrimSpace(authHeader)
+		// Accept either "Bearer <token>" or raw token.
+		if parts := strings.SplitN(tokenString, " ", 2); len(parts) == 2 {
+			if strings.EqualFold(strings.TrimSpace(parts[0]), "bearer") {
+				tokenString = strings.TrimSpace(parts[1])
+			}
+		}
+		if tokenString == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization token missing"})
 			return
 		}
-
-		tokenString := parts[1]
 
 		token, err := jwt.Parse(tokenString, jwks.Keyfunc)
 		if err != nil || !token.Valid {
