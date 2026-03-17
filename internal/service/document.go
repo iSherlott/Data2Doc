@@ -1639,60 +1639,15 @@ func (s *DocumentService) v2RenderPDF(req models.DocumentRequest, cols []v2Colum
 	bStyle := v2StyleBody(req)
 	fStyle := v2StyleFooter(req)
 
-	orient := "P"
-	if req.Layout != nil && req.Layout.PageOrientation == models.PageLandscape {
-		orient = "L"
-	}
-	pdf := gofpdf.New(orient, "mm", "A4", "")
-	// Margins in mm
-	if req.Layout != nil && req.Layout.PageMargin != nil {
-		pdf.SetMargins(req.Layout.PageMargin.Left, req.Layout.PageMargin.Top, req.Layout.PageMargin.Right)
-		pdf.SetAutoPageBreak(true, req.Layout.PageMargin.Bottom)
-	} else {
-		pdf.SetAutoPageBreak(true, 12)
-	}
-	pdf.AliasNbPages("")
-	// Ensure header image and top spacing are applied on every page, including auto page breaks.
-	var headerCfg *models.HeaderImageConfig
-	if req.Layout != nil && req.Layout.HeaderImage != nil && strings.TrimSpace(req.Layout.HeaderImage.Data) != "" {
-		cc := *req.Layout.HeaderImage
-		headerCfg = &cc
-	}
-	paragraphSpacing := 0.0
-	if req.Layout != nil && req.Layout.Spacing != nil {
-		paragraphSpacing = req.Layout.Spacing.ParagraphSpacing
-	}
-	if headerCfg != nil || paragraphSpacing > 0 {
-		pdf.SetHeaderFunc(func() {
-			if headerCfg != nil {
-				_ = v2AddPDFHeaderImage(pdf, *headerCfg)
-			}
-			if paragraphSpacing > 0 {
-				pdf.Ln(paragraphSpacing)
-			}
-		})
-	}
-	if req.Layout != nil && req.Layout.Footer != nil && req.Layout.Footer.PageNumber != nil && req.Layout.Footer.PageNumber.Enabled {
-		align := req.Layout.Footer.Alignment
-		if align == "" {
-			align = models.AlignCenter
-		}
-		fmtEnum := req.Layout.Footer.PageNumber.Format
-		if fmtEnum == "" {
-			fmtEnum = models.PageNumArabic
-		}
-		show := true
-		if req.Layout.Footer.Show != nil {
-			show = *req.Layout.Footer.Show
-		}
-		if show {
-			pdf.SetFooterFunc(func() {
-				pdf.SetY(-10)
-				v2SetPDFFont(pdf, fStyle)
-				pdf.CellFormat(0, 10, v2FormatPageNumberPDF(pdf.PageNo(), fmtEnum), "", 0, v2PDFAlign(align), false, 0, "")
-			})
+	// Builder mode with Index (TOC) requires a two-pass render so we can compute
+	// page numbers and create internal links.
+	if req.Layout != nil && len(req.Layout.Blocks) > 0 {
+		if v2PDFHasIndexBlock(req.Layout.Blocks) {
+			return v2PDFRenderBlocksWithIndex(req, hStyle, bStyle, fStyle)
 		}
 	}
+
+	pdf := v2PDFNew(req, fStyle)
 	pdf.AddPage()
 
 	// Builder mode: render ordered blocks sequentially.
@@ -1853,6 +1808,269 @@ func (s *DocumentService) v2RenderWord(req models.DocumentRequest, cols []v2Colu
 }
 
 // ---- PDF helpers ----
+
+func v2PDFNew(req models.DocumentRequest, fStyle models.StyleConfig) *gofpdf.Fpdf {
+	orient := "P"
+	if req.Layout != nil && req.Layout.PageOrientation == models.PageLandscape {
+		orient = "L"
+	}
+	pdf := gofpdf.New(orient, "mm", "A4", "")
+	// Margins in mm
+	if req.Layout != nil && req.Layout.PageMargin != nil {
+		pdf.SetMargins(req.Layout.PageMargin.Left, req.Layout.PageMargin.Top, req.Layout.PageMargin.Right)
+		pdf.SetAutoPageBreak(true, req.Layout.PageMargin.Bottom)
+	} else {
+		pdf.SetAutoPageBreak(true, 12)
+	}
+	pdf.AliasNbPages("")
+	// Ensure header image and top spacing are applied on every page, including auto page breaks.
+	var headerCfg *models.HeaderImageConfig
+	if req.Layout != nil && req.Layout.HeaderImage != nil && strings.TrimSpace(req.Layout.HeaderImage.Data) != "" {
+		cc := *req.Layout.HeaderImage
+		headerCfg = &cc
+	}
+	paragraphSpacing := 0.0
+	if req.Layout != nil && req.Layout.Spacing != nil {
+		paragraphSpacing = req.Layout.Spacing.ParagraphSpacing
+	}
+	if headerCfg != nil || paragraphSpacing > 0 {
+		pdf.SetHeaderFunc(func() {
+			if headerCfg != nil {
+				_ = v2AddPDFHeaderImage(pdf, *headerCfg)
+			}
+			if paragraphSpacing > 0 {
+				pdf.Ln(paragraphSpacing)
+			}
+		})
+	}
+	if req.Layout != nil && req.Layout.Footer != nil && req.Layout.Footer.PageNumber != nil && req.Layout.Footer.PageNumber.Enabled {
+		align := req.Layout.Footer.Alignment
+		if align == "" {
+			align = models.AlignCenter
+		}
+		fmtEnum := req.Layout.Footer.PageNumber.Format
+		if fmtEnum == "" {
+			fmtEnum = models.PageNumArabic
+		}
+		show := true
+		if req.Layout.Footer.Show != nil {
+			show = *req.Layout.Footer.Show
+		}
+		if show {
+			pdf.SetFooterFunc(func() {
+				pdf.SetY(-10)
+				v2SetPDFFont(pdf, fStyle)
+				pdf.CellFormat(0, 10, v2FormatPageNumberPDF(pdf.PageNo(), fmtEnum), "", 0, v2PDFAlign(align), false, 0, "")
+			})
+		}
+	}
+	return pdf
+}
+
+func v2PDFHasIndexBlock(blocks []models.PDFBlockConfig) bool {
+	count := 0
+	for i := range blocks {
+		if blocks[i].Type == models.PDFBlockIndex {
+			count++
+		}
+	}
+	return count > 0
+}
+
+type v2PDFIndexEntry struct {
+	Title        string
+	PageNo       int
+	SectionIndex int
+}
+
+func v2PDFIndexTitle(blocks []models.PDFBlockConfig) string {
+	for i := range blocks {
+		if blocks[i].Type == models.PDFBlockIndex {
+			if t := strings.TrimSpace(blocks[i].Content); t != "" {
+				return t
+			}
+			break
+		}
+	}
+	return "Índice"
+}
+
+func v2PDFValidateIndexBlocks(blocks []models.PDFBlockConfig) error {
+	idx := -1
+	count := 0
+	for i := range blocks {
+		if blocks[i].Type == models.PDFBlockIndex {
+			count++
+			if idx < 0 {
+				idx = i
+			}
+		}
+	}
+	if count == 0 {
+		return nil
+	}
+	if count > 1 {
+		return fmt.Errorf("only one Index block is supported")
+	}
+	// Keep it simple/deterministic: Index must be the first block.
+	if idx != 0 {
+		return fmt.Errorf("Index block must be the first block")
+	}
+	return nil
+}
+
+func v2PDFIndexPageCount(req models.DocumentRequest, fStyle models.StyleConfig, title string, entries int) int {
+	if entries <= 0 {
+		return 1
+	}
+	probe := v2PDFNew(req, fStyle)
+	probe.AddPage()
+
+	// Title
+	titleStyle := v2StyleBody(req)
+	titleStyle.FontSize = 16
+	titleStyle.Bold = true
+	v2SetPDFFont(probe, titleStyle)
+	lm, _, _, _ := probe.GetMargins()
+	probe.SetX(lm)
+	usableW := v2PDFUsableWidth(probe)
+	probe.MultiCell(usableW, v2PDFLineHeightMM(titleStyle.FontSize), v2PDFText(title), "", "L", false)
+	probe.Ln(4)
+
+	entryStyle := v2StyleBody(req)
+	entryStyle.FontSize = 12
+	entryStyle.Bold = false
+	v2SetPDFFont(probe, entryStyle)
+	entryLH := v2PDFLineHeightMM(entryStyle.FontSize)
+
+	availFirst := v2PDFBottomY(probe) - probe.GetY()
+	perFirst := int(math.Floor(availFirst / entryLH))
+	if perFirst < 1 {
+		perFirst = 1
+	}
+
+	probe.AddPage()
+	v2SetPDFFont(probe, entryStyle)
+	availOther := v2PDFBottomY(probe) - probe.GetY()
+	perOther := int(math.Floor(availOther / entryLH))
+	if perOther < 1 {
+		perOther = 1
+	}
+
+	if entries <= perFirst {
+		return 1
+	}
+	remaining := entries - perFirst
+	extra := int(math.Ceil(float64(remaining) / float64(perOther)))
+	return 1 + extra
+}
+
+func v2PDFRenderIndex(pdf *gofpdf.Fpdf, req models.DocumentRequest, bStyle models.StyleConfig, title string, entries []v2PDFIndexEntry, pageOffset int) (map[int]int, error) {
+	if pdf == nil {
+		return nil, fmt.Errorf("pdf is nil")
+	}
+	links := map[int]int{}
+
+	lm, _, _, _ := pdf.GetMargins()
+	usableW := v2PDFUsableWidth(pdf)
+
+	// Title
+	titleStyle := bStyle
+	titleStyle.FontSize = 16
+	titleStyle.Bold = true
+	v2SetPDFFont(pdf, titleStyle)
+	pdf.SetX(lm)
+	pdf.MultiCell(usableW, v2PDFLineHeightMM(titleStyle.FontSize), v2PDFText(title), "", "L", false)
+	pdf.Ln(4)
+
+	// Entries
+	entryStyle := bStyle
+	entryStyle.FontSize = 12
+	entryStyle.Bold = false
+	v2SetPDFFont(pdf, entryStyle)
+	v2SetPDFText(pdf, entryStyle.FontColor)
+	entryLH := v2PDFLineHeightMM(entryStyle.FontSize)
+
+	titleW := usableW - 15
+	numW := 15.0
+	if titleW < 20 {
+		titleW = usableW
+		numW = 0
+	}
+
+	for i := range entries {
+		if pdf.GetY()+entryLH > v2PDFBottomY(pdf) {
+			pdf.AddPage()
+			v2SetPDFFont(pdf, entryStyle)
+			v2SetPDFText(pdf, entryStyle.FontColor)
+		}
+		pno := entries[i].PageNo + pageOffset
+		if pno <= 0 {
+			pno = 1
+		}
+		linkID := pdf.AddLink()
+		links[entries[i].SectionIndex] = linkID
+
+		pdf.SetX(lm)
+		pdf.CellFormat(titleW, entryLH, v2PDFText(entries[i].Title), "", 0, "L", false, linkID, "")
+		if numW > 0 {
+			pdf.CellFormat(numW, entryLH, fmt.Sprintf("%d", pno), "", 1, "R", false, 0, "")
+		} else {
+			pdf.Ln(entryLH)
+		}
+	}
+	return links, nil
+}
+
+func v2PDFRenderBlocksWithIndex(req models.DocumentRequest, hStyle, bStyle, fStyle models.StyleConfig) ([]byte, error) {
+	if req.Layout == nil || len(req.Layout.Blocks) == 0 {
+		return nil, fmt.Errorf("layout.blocks is required")
+	}
+	if err := v2PDFValidateIndexBlocks(req.Layout.Blocks); err != nil {
+		return nil, err
+	}
+
+	// First pass: render content (skipping Index) to compute section page numbers.
+	pdf1 := v2PDFNew(req, fStyle)
+	pdf1.AddPage()
+	entries := make([]v2PDFIndexEntry, 0, 16)
+	if err := v2PDFRenderBlocksInternal(pdf1, req, hStyle, bStyle, v2PDFRenderBlocksOptions{SkipIndex: true, CollectIndex: &entries}); err != nil {
+		return nil, err
+	}
+
+	idxTitle := v2PDFIndexTitle(req.Layout.Blocks)
+	idxPages := v2PDFIndexPageCount(req, fStyle, idxTitle, len(entries))
+
+	// Second pass: render Index pages, then render content (skipping Index) while setting internal links.
+	// We render in a short loop to guarantee that the page offset used in the Index matches
+	// the actual number of Index pages created.
+	for attempt := 0; attempt < 3; attempt++ {
+		pdf2 := v2PDFNew(req, fStyle)
+		pdf2.AddPage()
+		linkIDs, err := v2PDFRenderIndex(pdf2, req, bStyle, idxTitle, entries, idxPages)
+		if err != nil {
+			return nil, err
+		}
+		actualIdxPages := pdf2.PageNo()
+		if actualIdxPages != idxPages {
+			idxPages = actualIdxPages
+			continue
+		}
+
+		// Force content to start after the Index pages.
+		pdf2.AddPage()
+		if err := v2PDFRenderBlocksInternal(pdf2, req, hStyle, bStyle, v2PDFRenderBlocksOptions{SkipIndex: true, SectionLinks: linkIDs}); err != nil {
+			return nil, err
+		}
+
+		var out bytes.Buffer
+		if err := pdf2.Output(&out); err != nil {
+			return nil, err
+		}
+		return out.Bytes(), nil
+	}
+	return nil, fmt.Errorf("failed to render Index with stable page count")
+}
 
 func v2FormatPageNumberPDF(pageNo int, fmtEnum models.PageNumberFormatEnum) string {
 	if pageNo <= 0 {
@@ -2253,12 +2471,62 @@ func v2AddPDFHeaderImage(pdf *gofpdf.Fpdf, cfg models.HeaderImageConfig) error {
 }
 
 func v2PDFText(s string) string {
-	out, err := charmap.ISO8859_1.NewEncoder().String(s)
-	if err != nil {
-		return s
+	if s == "" {
+		return ""
 	}
+	// gofpdf core fonts expect ISO-8859-1 encoded text. If we accidentally pass UTF-8 bytes
+	// (e.g. after a failed encoding), the output becomes mojibake like "Ã¡" or "â€”".
+	// Normalize common Unicode punctuation to Latin-1/ASCII and then force ISO-8859-1.
+	n := v2PDFUnicodeReplacer.Replace(s)
+	out, err := charmap.ISO8859_1.NewEncoder().String(n)
+	if err == nil {
+		return out
+	}
+
+	// Fallback: replace any remaining non-Latin-1 runes.
+	var b strings.Builder
+	b.Grow(len(n))
+	for _, r := range n {
+		switch r {
+		case '\u2014', '\u2013', '\u2212':
+			b.WriteByte('-')
+		case '\u201C', '\u201D':
+			b.WriteByte('"')
+		case '\u2018', '\u2019':
+			b.WriteByte('\'')
+		case '\u2026':
+			b.WriteString("...")
+		case '\u2022':
+			b.WriteByte('*')
+		case '\u00A0':
+			b.WriteByte(' ')
+		case '\u20AC':
+			b.WriteString("EUR")
+		default:
+			if r <= 0xFF {
+				b.WriteRune(r)
+			} else {
+				b.WriteByte('?')
+			}
+		}
+	}
+	out, _ = charmap.ISO8859_1.NewEncoder().String(b.String())
 	return out
 }
+
+var v2PDFUnicodeReplacer = strings.NewReplacer(
+	"\u2014", "-", // em dash
+	"\u2013", "-", // en dash
+	"\u2212", "-", // minus
+	"\u201C", "\"",
+	"\u201D", "\"",
+	"\u2018", "'",
+	"\u2019", "'",
+	"\u2026", "...",
+	"\u2022", "*",
+	"\u00A0", " ",
+	"\u20AC", "EUR",
+)
 
 // ---- PDF block builder helpers ----
 
@@ -2343,6 +2611,16 @@ func v2PDFEnsurePage(pdf *gofpdf.Fpdf, needH float64) {
 }
 
 func v2PDFRenderBlocks(pdf *gofpdf.Fpdf, req models.DocumentRequest, hStyle, bStyle models.StyleConfig) error {
+	return v2PDFRenderBlocksInternal(pdf, req, hStyle, bStyle, v2PDFRenderBlocksOptions{})
+}
+
+type v2PDFRenderBlocksOptions struct {
+	SkipIndex    bool
+	SectionLinks map[int]int
+	CollectIndex *[]v2PDFIndexEntry
+}
+
+func v2PDFRenderBlocksInternal(pdf *gofpdf.Fpdf, req models.DocumentRequest, hStyle, bStyle models.StyleConfig, opt v2PDFRenderBlocksOptions) error {
 	lm, _, _, _ := pdf.GetMargins()
 	usableW := v2PDFUsableWidth(pdf)
 	spacingPara := 0.0
@@ -2351,6 +2629,8 @@ func v2PDFRenderBlocks(pdf *gofpdf.Fpdf, req models.DocumentRequest, hStyle, bSt
 		spacingPara = req.Layout.Spacing.ParagraphSpacing
 		spacingTable = req.Layout.Spacing.TableSpacing
 	}
+
+	sectionIndex := 0
 
 	for i := range req.Layout.Blocks {
 		blk := req.Layout.Blocks[i]
@@ -2364,7 +2644,13 @@ func v2PDFRenderBlocks(pdf *gofpdf.Fpdf, req models.DocumentRequest, hStyle, bSt
 		case models.PDFBlockPageBreak:
 			pdf.AddPage()
 			continue
+		case models.PDFBlockIndex:
+			if opt.SkipIndex {
+				continue
+			}
+			return fmt.Errorf("blocks[%d]: Index must be handled by the PDF index renderer", i)
 		case models.PDFBlockSectionTitle:
+			sectionIndex++
 			// Default title style.
 			base := bStyle
 			base.FontSize = 16
@@ -2378,6 +2664,14 @@ func v2PDFRenderBlocks(pdf *gofpdf.Fpdf, req models.DocumentRequest, hStyle, bSt
 			pdf.SetX(lm)
 			lines := v2PDFSplitLines(pdf, v2PDFText(blk.Content), usableW)
 			v2PDFEnsurePage(pdf, float64(len(lines))*lh)
+			if opt.CollectIndex != nil {
+				*opt.CollectIndex = append(*opt.CollectIndex, v2PDFIndexEntry{Title: blk.Content, PageNo: pdf.PageNo(), SectionIndex: sectionIndex})
+			}
+			if opt.SectionLinks != nil {
+				if linkID, ok := opt.SectionLinks[sectionIndex]; ok {
+					pdf.SetLink(linkID, pdf.GetY(), pdf.PageNo())
+				}
+			}
 			pdf.MultiCell(usableW, lh, v2PDFText(blk.Content), "", v2PDFAlign(style.Alignment), false)
 			if spacingPara > 0 {
 				pdf.Ln(spacingPara)
@@ -3241,6 +3535,14 @@ func v2WordBlocksBodyXML(req models.DocumentRequest, startImageIndex, startDocPr
 	for i := range req.Layout.Blocks {
 		blk := req.Layout.Blocks[i]
 		switch blk.Type {
+		case models.PDFBlockIndex:
+			title := strings.TrimSpace(blk.Content)
+			if title == "" {
+				title = "Índice"
+			}
+			sb.WriteString(v2WordBoldTextParagraphXML(title))
+			sb.WriteString(v2WordTOCFieldXML())
+			sb.WriteString(v2WordPageBreakParagraphXML())
 		case models.PDFBlockSectionTitle:
 			sb.WriteString(v2WordHeading1ParagraphXML(blk.Content))
 		case models.PDFBlockText:
@@ -3339,6 +3641,12 @@ func v2WordSpacerParagraphXML(heightMM float64) string {
 
 func v2WordPageBreakParagraphXML() string {
 	return `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`
+}
+
+func v2WordTOCFieldXML() string {
+	// Word will populate the Table of Contents when fields are updated (usually on open/print).
+	// \h enables hyperlinks; page numbers are included by default.
+	return `<w:p><w:fldSimple w:instr="TOC \\o &quot;1-3&quot; \\h \\z \\u"><w:r><w:t xml:space="preserve"> </w:t></w:r></w:fldSimple></w:p>`
 }
 
 func v2WordInlineImageParagraphXML(jc, relID string, docPrID int, name string, cxEMU, cyEMU int64) string {

@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/swaggo/swag"
 
 	docs "Data2Doc/docs"
 )
@@ -54,12 +56,27 @@ func NewRouter() *gin.Engine {
 				c.Header("Pragma", "no-cache")
 				c.Header("Expires", "0")
 
-				docs.SwaggerInfo.Host = c.Request.Host
-				if c.Request.TLS != nil {
-					docs.SwaggerInfo.Schemes = []string{"https"}
-				} else {
-					docs.SwaggerInfo.Schemes = []string{"http"}
+				// Azure Container Apps / reverse proxies typically terminate TLS before the app,
+				// so rely on forwarded headers when available.
+				host := strings.TrimSpace(c.GetHeader("X-Forwarded-Host"))
+				if host == "" {
+					host = c.Request.Host
 				}
+				docs.SwaggerInfo.Host = host
+
+				proto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto"))
+				if proto == "" {
+					if c.Request.TLS != nil {
+						proto = "https"
+					} else {
+						proto = "http"
+					}
+				}
+				proto = strings.ToLower(proto)
+				if proto != "https" {
+					proto = "http"
+				}
+				docs.SwaggerInfo.Schemes = []string{proto}
 			}
 			c.Next()
 		})
@@ -67,7 +84,49 @@ func NewRouter() *gin.Engine {
 		r.GET("/swagger", func(c *gin.Context) {
 			c.Redirect(http.StatusFound, "/swagger/index.html")
 		})
-		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+		swaggerUIHandler := ginSwagger.WrapHandler(swaggerFiles.Handler)
+		r.GET("/swagger/*any", func(c *gin.Context) {
+			// gin doesn't allow registering both /swagger/doc.json and /swagger/*any.
+			// So we intercept doc.json here to serve a filtered spec.
+			if c.Param("any") == "/doc.json" {
+				// Avoid stale swagger specs due to browser/proxy caching.
+				c.Header("Cache-Control", "no-store")
+				c.Header("Pragma", "no-cache")
+				c.Header("Expires", "0")
+
+				raw, err := swag.ReadDoc()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load swagger spec"})
+					return
+				}
+				var spec map[string]any
+				if err := json.Unmarshal([]byte(raw), &spec); err != nil {
+					c.Data(http.StatusOK, "application/json; charset=utf-8", []byte(raw))
+					return
+				}
+
+				if strings.TrimSpace(os.Getenv("AUTH_JWKS_URL")) != "" {
+					if paths, ok := spec["paths"].(map[string]any); ok {
+						delete(paths, "/auth/token")
+					}
+					// Best-effort cleanup of request model definition.
+					if defs, ok := spec["definitions"].(map[string]any); ok {
+						delete(defs, "handlers.tokenRequest")
+					}
+				}
+
+				out, err := json.Marshal(spec)
+				if err != nil {
+					c.Data(http.StatusOK, "application/json; charset=utf-8", []byte(raw))
+					return
+				}
+				c.Data(http.StatusOK, "application/json; charset=utf-8", out)
+				return
+			}
+
+			swaggerUIHandler(c)
+		})
 	}
 
 	// Public metadata endpoint (no auth).

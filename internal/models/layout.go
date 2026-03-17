@@ -684,6 +684,9 @@ func (b *PDFBlockConfig) Validate() error {
 		if strings.TrimSpace(b.Content) == "" {
 			return fmt.Errorf("content is required for Text")
 		}
+	case PDFBlockIndex:
+		// Optional Content (title). No required fields.
+		return nil
 	case PDFBlockSectionTitle:
 		if strings.TrimSpace(b.Content) == "" {
 			return fmt.Errorf("content is required for SectionTitle")

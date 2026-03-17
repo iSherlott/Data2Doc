@@ -620,13 +620,14 @@ const (
 	PDFBlockChart        PDFBlockTypeEnum = "Chart"
 	PDFBlockImage        PDFBlockTypeEnum = "Image"
 	PDFBlockSpacer       PDFBlockTypeEnum = "Spacer"
+	PDFBlockIndex        PDFBlockTypeEnum = "Index"
 	PDFBlockSectionTitle PDFBlockTypeEnum = "SectionTitle"
 	PDFBlockPageBreak    PDFBlockTypeEnum = "PageBreak"
 )
 
 func (e PDFBlockTypeEnum) IsValid() bool {
 	switch e {
-	case PDFBlockText, PDFBlockTable, PDFBlockChart, PDFBlockImage, PDFBlockSpacer, PDFBlockSectionTitle, PDFBlockPageBreak:
+	case PDFBlockText, PDFBlockTable, PDFBlockChart, PDFBlockImage, PDFBlockSpacer, PDFBlockIndex, PDFBlockSectionTitle, PDFBlockPageBreak:
 		return true
 	default:
 		return false
@@ -662,12 +663,14 @@ func (e *PDFBlockTypeEnum) fromString(s string) error {
 		*e = PDFBlockImage
 	case "spacer":
 		*e = PDFBlockSpacer
+	case "index", "toc", "tableofcontents", "table_of_contents", "table-of-contents":
+		*e = PDFBlockIndex
 	case "sectiontitle", "section_title", "section-title":
 		*e = PDFBlockSectionTitle
 	case "pagebreak", "page_break", "page-break":
 		*e = PDFBlockPageBreak
 	default:
-		return fmt.Errorf("invalid block type '%s' (expected: Text|Table|Chart|Image|Spacer|SectionTitle|PageBreak)", s)
+		return fmt.Errorf("invalid block type '%s' (expected: Text|Table|Chart|Image|Spacer|Index|SectionTitle|PageBreak)", s)
 	}
 	return nil
 }

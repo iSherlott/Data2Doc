@@ -124,6 +124,47 @@ func TestGenerateV2_PDF_Encoding_Portuguese_Strings_AreNotMojibake(t *testing.T)
 	}
 }
 
+func TestGenerateV2_PDF_Encoding_UnicodePunctuation_IsSanitized(t *testing.T) {
+	svc := &service.DocumentService{}
+
+	input := "Análise — resumo… 2023–2024"
+	// Expected: Unicode punctuation normalized to ASCII that is safe for ISO-8859-1.
+	expected := "Análise - resumo... 2023-2024"
+
+	req := models.DocumentRequest{
+		Format: models.DocumentFormatPDF,
+		Layout: &models.LayoutConfig{Columns: []models.ColumnConfig{{Field: "txt", Title: "Texto"}}},
+		Data: models.DataPayload{Default: models.DynamicData{
+			Order: []string{"txt"},
+			Items: []map[string]any{{"txt": input}},
+		}},
+	}
+
+	gen, err := svc.Generate(req)
+	if err != nil {
+		t.Fatalf("GenerateV2: %v", err)
+	}
+
+	streams := extractFlateStreams(gen.Bytes)
+	if len(streams) == 0 {
+		t.Fatalf("expected at least one flate stream")
+	}
+	joined := bytes.Join(streams, []byte("\n"))
+
+	// UTF-8 sequences for: em dash (E2 80 94), ellipsis (E2 80 A6), en dash (E2 80 93)
+	if bytes.Contains(joined, []byte{0xE2, 0x80, 0x94}) || bytes.Contains(joined, []byte{0xE2, 0x80, 0xA6}) || bytes.Contains(joined, []byte{0xE2, 0x80, 0x93}) {
+		t.Fatalf("unexpected UTF-8 unicode punctuation bytes in PDF stream")
+	}
+
+	escaped := []byte(pdfLiteralEscapedISO88591(expected))
+	raw, _ := charmap.ISO8859_1.NewEncoder().Bytes([]byte(expected))
+	hexUpper := []byte("<" + strings.ToUpper(hex.EncodeToString(raw)) + ">")
+	hexLower := []byte("<" + strings.ToLower(hex.EncodeToString(raw)) + ">")
+	if !bytes.Contains(joined, escaped) && !bytes.Contains(joined, raw) && !bytes.Contains(joined, hexUpper) && !bytes.Contains(joined, hexLower) {
+		t.Fatalf("expected PDF content to contain sanitized text %q", expected)
+	}
+}
+
 const tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
 
 func TestGenerateV2_PDF_Blocks_MixedContent_Renders(t *testing.T) {
@@ -204,6 +245,34 @@ func TestGenerateV2_PDF_Blocks_PageBreak_ForcesNewPage(t *testing.T) {
 	}
 	if p := countPDFPages(gen.Bytes); p != 2 {
 		t.Fatalf("expected 2 pages, got %d", p)
+	}
+}
+
+func TestGenerateV2_PDF_Blocks_Index_RendersAndCreatesLinks(t *testing.T) {
+	svc := &service.DocumentService{}
+
+	req := models.DocumentRequest{
+		Format: models.DocumentFormatPDF,
+		Layout: &models.LayoutConfig{
+			PageMargin: &models.PageMarginConfig{Top: 10, Right: 10, Bottom: 10, Left: 10},
+			Blocks: []models.PDFBlockConfig{
+				{Type: models.PDFBlockIndex, Content: "Índice"},
+				{Type: models.PDFBlockSectionTitle, Content: "Seção A"},
+				{Type: models.PDFBlockText, Content: "Conteúdo"},
+			},
+		},
+		Data: models.DataPayload{},
+	}
+
+	gen, err := svc.Generate(req)
+	if err != nil {
+		t.Fatalf("GenerateV2: %v", err)
+	}
+	if p := countPDFPages(gen.Bytes); p < 2 {
+		t.Fatalf("expected at least 2 pages (Index + content), got %d", p)
+	}
+	if !bytes.Contains(gen.Bytes, []byte("/Subtype /Link")) && !bytes.Contains(gen.Bytes, []byte("/Subtype/Link")) {
+		t.Fatalf("expected PDF to contain link annotations for Index entries")
 	}
 }
 

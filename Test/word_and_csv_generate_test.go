@@ -242,6 +242,36 @@ func TestGenerateV2_Word_Blocks_PageBreak_WritesWbrPage(t *testing.T) {
 	}
 }
 
+func TestGenerateV2_Word_Blocks_Index_WritesTOCFieldAndPageBreak(t *testing.T) {
+	svc := &service.DocumentService{}
+
+	req := models.DocumentRequest{
+		Format: models.DocumentFormatWord,
+		Layout: &models.LayoutConfig{
+			PageMargin: &models.PageMarginConfig{Top: 10, Right: 10, Bottom: 10, Left: 10},
+			Blocks: []models.PDFBlockConfig{
+				{Type: models.PDFBlockIndex, Content: "Índice"},
+				{Type: models.PDFBlockSectionTitle, Content: "Seção A"},
+				{Type: models.PDFBlockText, Content: "Conteúdo"},
+			},
+		},
+		Data: models.DataPayload{},
+	}
+
+	gen, err := svc.Generate(req)
+	if err != nil {
+		t.Fatalf("GenerateV2: %v", err)
+	}
+
+	docXML := readZipEntryString(t, gen.Bytes, "word/document.xml")
+	if !strings.Contains(docXML, `w:instr="TOC \\o`) {
+		t.Fatalf("expected TOC field in document.xml")
+	}
+	if !strings.Contains(docXML, `<w:br w:type="page"/>`) {
+		t.Fatalf("expected page break after Index")
+	}
+}
+
 func TestGenerateV2_Word_Blocks_MixedContent_WritesImagesAndHeading(t *testing.T) {
 	svc := &service.DocumentService{}
 
